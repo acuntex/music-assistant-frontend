@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick, type Ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AudioProcessingDetails from "@/components/AudioProcessingDetails.vue";
@@ -41,6 +41,8 @@ const apiMock = vi.hoisted(() => ({
   // subscribes to config updates on mount; subscribe hands back an unsubscribe.
   getDSPIRs: vi.fn<MusicAssistantApi["getDSPIRs"]>(() => Promise.resolve([])),
   subscribe: vi.fn(() => vi.fn()),
+  // the program bus panel reads the queue's bus on mount and polls while it is open
+  sendCommand: vi.fn<MusicAssistantApi["sendCommand"]>(),
   players: {} as Record<string, AudioProcessingDisplayPlayer>,
 }));
 const presetRegistryMock = vi.hoisted(() => ({
@@ -86,7 +88,21 @@ beforeEach(() => {
     },
   };
   getPresetNames().value = new Map([["preset-1", "Living room"]]);
+  apiMock.sendCommand.mockReset();
+  apiMock.sendCommand.mockResolvedValue(programBusOff());
 });
+
+function programBusOff() {
+  return {
+    enabled: false,
+    session_active: false,
+    no_audible_position: false,
+    format: null,
+    claims: { flow: false, boundary: false },
+    overlays: [],
+    last: [],
+  };
+}
 
 describe("AudioProcessingDetails", () => {
   it("renders the embedded processing model and server-grouped outputs", () => {
@@ -913,6 +929,35 @@ describe("AudioProcessingDetails", () => {
     expect(destination.findAll("li").at(-1)?.text()).toBe("Room 20");
   });
 
+  it("shows the program bus as a feed before the outputs, only for a known queue", async () => {
+    const withoutQueue = mountDetails(makeFullChain());
+    expect(
+      withoutQueue
+        .findAll("[data-section]")
+        .map((section) => section.attributes("data-section")),
+    ).not.toContain("program-bus");
+
+    const wrapper = mountDetails(
+      makeFullChain(),
+      makeStreamDetails(),
+      undefined,
+      undefined,
+      "queue-1",
+    );
+    await flushPromises();
+
+    expect(
+      wrapper
+        .findAll("[data-section]")
+        .map((section) => section.attributes("data-section")),
+    ).toEqual(["input", "processing", "program-bus", "output"]);
+    expect(apiMock.sendCommand).toHaveBeenCalledWith("streams/program_bus", {
+      queue_id: "queue-1",
+    });
+    expect(wrapper.text()).toContain("Program bus is off");
+    wrapper.unmount();
+  });
+
   it("keeps multiple output paths separate and terminates the final path", () => {
     const wrapper = mountDetails({
       outputs: [
@@ -955,6 +1000,7 @@ function mountDetails(
   streamDetails = makeStreamDetails(),
   crossfadeIntent?: CrossfadeMode,
   container?: ItemMapping,
+  queueId?: string,
 ) {
   return mount(AudioProcessingDetails, {
     props: {
@@ -962,6 +1008,7 @@ function mountDetails(
       streamDetails,
       crossfadeIntent,
       container,
+      queueId,
     },
     global: {
       plugins: [i18n],

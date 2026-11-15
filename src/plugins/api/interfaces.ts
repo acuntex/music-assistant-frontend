@@ -2207,6 +2207,58 @@ export interface StreamServerInfo {
   base_url: string;
 }
 
+// Program bus interfaces
+
+/** The PCM format a program has to be delivered in to be mixed into a queue's stream. */
+export interface ProgramBusFormat {
+  sample_rate: number;
+  bit_depth: number;
+  channels: number;
+}
+
+/** What the owners of a queue currently have its stream do for their programs. */
+export interface ProgramBusClaims {
+  flow: boolean;
+  boundary: boolean;
+}
+
+/** What became of one program of a queue's program bus. */
+export type ProgramBusProgramState =
+  "scheduled" | "aired" | "orphaned" | "dropped";
+
+/** A program the queue's stream still has to play. */
+export interface ProgramBusOverlay {
+  label: string;
+  state: ProgramBusProgramState;
+  // seconds from what the listener hears to the program's start, null when unknown
+  start_in_seconds: number | null;
+  frames: number;
+  // seconds before its boundary the program was planned to start
+  head_seconds: number;
+  // seconds the bus had to move it past that boundary
+  late_by_seconds: number;
+}
+
+/** A program that was heard to its end, or ended without being heard. */
+export interface ProgramBusEnded {
+  label: string;
+  state: ProgramBusProgramState;
+  // why it was not heard, null for a program that aired
+  reason: string | null;
+  frames: number;
+}
+
+/** What a queue's program bus is doing, without any program audio. */
+export interface ProgramBusView {
+  enabled: boolean;
+  session_active: boolean;
+  no_audible_position: boolean;
+  format: ProgramBusFormat | null;
+  claims: ProgramBusClaims;
+  overlays: ProgramBusOverlay[];
+  last: ProgramBusEnded[];
+}
+
 // Storage interfaces
 
 export enum StorageUsage {

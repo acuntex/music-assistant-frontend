@@ -4,15 +4,22 @@ import { compileHost, GENERIC_SEGMENT_TEMPLATES } from "@/helpers/ai_radio";
 import type { HostDraft } from "@/helpers/ai_radio";
 import type { AIRadioHost } from "@/plugins/api/interfaces";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { authManager } from "@/plugins/auth";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type SendCommand = (
   command: string,
   args?: Record<string, unknown>,
 ) => Promise<unknown>;
 
-const { sendCommand } = vi.hoisted(() => ({
+const { sendCommand, getCoreConfigValue, saveCoreConfig } = vi.hoisted(() => ({
   sendCommand: vi.fn<SendCommand>(async () => []),
+  getCoreConfigValue:
+    vi.fn<(domain: string, key: string) => Promise<unknown>>(),
+  saveCoreConfig:
+    vi.fn<
+      (domain: string, values: Record<string, unknown>) => Promise<unknown>
+    >(),
 }));
 
 vi.mock("@/plugins/api", () => ({
@@ -20,6 +27,8 @@ vi.mock("@/plugins/api", () => ({
     // useHosts derives ai_radio availability from the provider list.
     providers: {},
     sendCommand,
+    getCoreConfigValue,
+    saveCoreConfig,
     state: { value: "initialized" },
   },
 }));
@@ -64,8 +73,14 @@ const aiRadioCommands = () =>
     .map(([command]) => command)
     .filter((command) => command.startsWith("ai_radio/"));
 
+beforeEach(() => {
+  getCoreConfigValue.mockResolvedValue(false);
+  saveCoreConfig.mockResolvedValue(undefined);
+});
+
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
   sendCommand.mockImplementation(async () => []);
   useHosts().hosts.value = [];
 });

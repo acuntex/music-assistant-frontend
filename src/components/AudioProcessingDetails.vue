@@ -64,6 +64,12 @@
       </div>
     </section>
 
+    <ProgramBusPanel
+      v-if="queueId"
+      :queue-id="queueId"
+      @navigate="emit('navigate')"
+    />
+
     <section
       v-for="(output, outputIndex) in outputPaths"
       :key="output.key"
@@ -109,6 +115,7 @@
 <script setup lang="ts">
 import { toRef } from "vue";
 import AudioProcessingStage from "@/components/AudioProcessingStage.vue";
+import ProgramBusPanel from "@/components/ProgramBusPanel.vue";
 import { useAudioProcessingDetails } from "@/composables/useAudioProcessingDetails";
 import { qualityTierToColor } from "@/composables/useStreamQuality";
 import { $t } from "@/plugins/i18n";
