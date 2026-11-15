@@ -133,6 +133,26 @@
             </p>
           </div>
 
+          <div class="flex flex-col gap-1.5">
+            <FieldLabel
+              html-for="customize-host-max-contribution"
+              :label="$t('providers.ai_radio.fields.max_contribution')"
+            />
+            <Input
+              id="customize-host-max-contribution"
+              v-model="maxContributionText"
+              type="number"
+              class="w-28"
+              :min="MAX_CONTRIBUTION_SECONDS_MIN"
+              :max="MAX_CONTRIBUTION_SECONDS_MAX"
+              :step="MAX_CONTRIBUTION_SECONDS_STEP"
+              @blur="normalizeMaxContributionText"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ $t("providers.ai_radio.field_descriptions.max_contribution") }}
+            </p>
+          </div>
+
           <Accordion type="single" collapsible class="md:col-span-2">
             <AccordionItem value="advanced" class="border-b-0 border-t">
               <AccordionTrigger>
@@ -276,8 +296,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { useShows } from "@/composables/ai-radio/useShows";
 import {
+  clampMaxContribution,
   clampTermHeadSeconds,
   compileHost,
+  DEFAULT_MAX_CONTRIBUTION_SECONDS,
   DEFAULT_TERM_HEAD_SECONDS,
   deepClone,
   decompileHost,
@@ -285,6 +307,9 @@ import {
   GENERIC_HOST_INSTRUCTIONS,
   GENERIC_HOST_SEGMENTS,
   GENERIC_SEGMENT_TEMPLATES,
+  MAX_CONTRIBUTION_SECONDS_MAX,
+  MAX_CONTRIBUTION_SECONDS_MIN,
+  MAX_CONTRIBUTION_SECONDS_STEP,
   NONE_SELECT_VALUE,
   optionValueToText,
   rowsToOptions,
@@ -384,6 +409,26 @@ function normalizeTermHeadText() {
   termHeadText.value = draft.value.termHeadSeconds;
 }
 
+// Same raw-text handling as the pre-roll: the field keeps what was typed while
+// the draft always holds a clamped number, because the server rejects a null.
+const maxContributionText = ref<string | number>("");
+
+watch(maxContributionText, (value) => {
+  if (!draft.value) return;
+  const trimmed = String(value).trim();
+  if (trimmed === "") return;
+  const seconds = Number(trimmed);
+  if (!Number.isFinite(seconds)) return;
+  const clamped = clampMaxContribution(seconds);
+  draft.value.maxContributionSeconds = clamped;
+  if (seconds !== clamped) maxContributionText.value = clamped;
+});
+
+function normalizeMaxContributionText() {
+  if (!draft.value) return;
+  maxContributionText.value = draft.value.maxContributionSeconds;
+}
+
 function updateSegment(index: number, segment: ShowSegment) {
   draft.value?.segments.splice(index, 1, segment);
 }
@@ -446,6 +491,7 @@ function newHostDraft(): HostDraft {
     language: "",
     options: {},
     termHeadSeconds: DEFAULT_TERM_HEAD_SECONDS,
+    maxContributionSeconds: DEFAULT_MAX_CONTRIBUTION_SECONDS,
     segments: deepClone(GENERIC_HOST_SEGMENTS),
   };
 }
@@ -597,6 +643,7 @@ onMounted(async () => {
     }
     loadOptionRows(draft.value.options);
     normalizeTermHeadText();
+    normalizeMaxContributionText();
     originalSnapshot = JSON.stringify(draft.value);
   } catch (error) {
     loadError.value = errorMessage(error);

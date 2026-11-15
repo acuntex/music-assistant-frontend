@@ -217,6 +217,32 @@ export const clampTermHeadSeconds = (value: unknown): number => {
   );
 };
 
+/** Server default for the longest a single spoken contribution may run. */
+export const DEFAULT_MAX_CONTRIBUTION_SECONDS = 45;
+/** Server-side bounds for max_contribution_seconds; the editor control mirrors them. */
+export const MAX_CONTRIBUTION_SECONDS_MIN = 15;
+export const MAX_CONTRIBUTION_SECONDS_MAX = 90;
+export const MAX_CONTRIBUTION_SECONDS_STEP = 1;
+
+/**
+ * Brings a contribution ceiling into the server's accepted range. The server
+ * rejects a missing value outright, so anything unusable falls back to the
+ * default rather than being sent as-is.
+ */
+export const clampMaxContribution = (value: unknown): number => {
+  // null/undefined/"": no value at all, which must become the default rather
+  // than the minimum, since Number(null) would read as 0.
+  if (value === null || value === undefined || value === "") {
+    return DEFAULT_MAX_CONTRIBUTION_SECONDS;
+  }
+  const seconds = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(seconds)) return DEFAULT_MAX_CONTRIBUTION_SECONDS;
+  return Math.min(
+    MAX_CONTRIBUTION_SECONDS_MAX,
+    Math.max(MAX_CONTRIBUTION_SECONDS_MIN, seconds),
+  );
+};
+
 const GUARD_PLACEHOLDER_TOKENS = ["<weather_hourly>", "<timestamp>"] as const;
 
 const detectRequiredPlaceholders = (prompt: string): string[] => {
@@ -391,6 +417,8 @@ export interface HostDraft {
   options: Record<string, unknown>;
   // termHeadSeconds: how much of the spoken contribution starts before the crossfade
   termHeadSeconds: number;
+  // maxContributionSeconds: longest a single spoken contribution may run
+  maxContributionSeconds: number;
   segments: ShowSegment[];
   // Carried through unchanged; the server validates them on save
   presetId?: string;
@@ -427,6 +455,9 @@ export const compileHost = (draft: HostDraft): CompiledHost => {
       section_order: sectionOrder,
       merge_section_id: mergeSectionId,
       term_head_seconds: clampTermHeadSeconds(draft.termHeadSeconds),
+      max_contribution_seconds: clampMaxContribution(
+        draft.maxContributionSeconds,
+      ),
       ...(draft.presetId && draft.presetHash
         ? { preset_id: draft.presetId, preset_hash: draft.presetHash }
         : {}),
@@ -578,6 +609,7 @@ export const decompileHost = (
     language: host.language,
     options: host.options,
     termHeadSeconds: clampTermHeadSeconds(host.term_head_seconds),
+    maxContributionSeconds: clampMaxContribution(host.max_contribution_seconds),
     segments,
     presetId: host.preset_id,
     presetHash: host.preset_hash,

@@ -1,7 +1,9 @@
 import {
+  clampMaxContribution,
   coerceOptionValue,
   compileHost,
   decompileHost,
+  DEFAULT_MAX_CONTRIBUTION_SECONDS,
   DEFAULT_TERM_HEAD_SECONDS,
   optionValueToText,
   rowsToOptions,
@@ -29,6 +31,7 @@ const makeDraft = (overrides: Partial<HostDraft> = {}): HostDraft => ({
   language: "",
   options: {},
   termHeadSeconds: 2,
+  maxContributionSeconds: 45,
   segments: [],
   ...overrides,
 });
@@ -44,6 +47,7 @@ const makeHost = (overrides: Partial<AIRadioHost> = {}): AIRadioHost => ({
   section_order: [],
   merge_section_id: "",
   term_head_seconds: 2,
+  max_contribution_seconds: 45,
   ...overrides,
 });
 
@@ -126,6 +130,56 @@ describe("term_head_seconds round-trip", () => {
     delete legacy.term_head_seconds;
     const draft = decompileHost(legacy as AIRadioHost, []);
     expect(draft.termHeadSeconds).toBe(DEFAULT_TERM_HEAD_SECONDS);
+  });
+});
+
+describe("max_contribution_seconds round-trip", () => {
+  it("sends the draft's ceiling on every host save", () => {
+    const { host } = compileHost(makeDraft({ maxContributionSeconds: 60 }));
+    expect(host.max_contribution_seconds).toBe(60);
+  });
+
+  it("sends the server default when the draft has no usable ceiling", () => {
+    const draft = makeDraft({ maxContributionSeconds: undefined });
+    const { host } = compileHost(draft);
+    expect(host.max_contribution_seconds).toBe(
+      DEFAULT_MAX_CONTRIBUTION_SECONDS,
+    );
+  });
+
+  it("always sends a number, never null, for a missing draft value", () => {
+    const { host } = compileHost(
+      makeDraft({ maxContributionSeconds: null as unknown as number }),
+    );
+    expect(typeof host.max_contribution_seconds).toBe("number");
+    expect(host.max_contribution_seconds).toBe(
+      DEFAULT_MAX_CONTRIBUTION_SECONDS,
+    );
+  });
+
+  it("clamps an entry above the maximum down to 90", () => {
+    expect(clampMaxContribution(100)).toBe(90);
+  });
+
+  it("clamps an entry below the minimum up to 15", () => {
+    expect(clampMaxContribution(5)).toBe(15);
+  });
+
+  it("keeps both range ends unchanged", () => {
+    expect(clampMaxContribution(15)).toBe(15);
+    expect(clampMaxContribution(90)).toBe(90);
+  });
+
+  it("carries a host's ceiling into the draft", () => {
+    const draft = decompileHost(makeHost({ max_contribution_seconds: 60 }), []);
+    expect(draft.maxContributionSeconds).toBe(60);
+  });
+
+  it("falls back to 45 for a host payload without a ceiling", () => {
+    const legacy = { ...makeHost() } as Partial<AIRadioHost>;
+    delete legacy.max_contribution_seconds;
+    const draft = decompileHost(legacy as AIRadioHost, []);
+    expect(draft.maxContributionSeconds).toBe(DEFAULT_MAX_CONTRIBUTION_SECONDS);
   });
 });
 

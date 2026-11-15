@@ -176,6 +176,7 @@ function makeHost(overrides: Partial<AIRadioHost> = {}): AIRadioHost {
     language: "",
     options: {},
     term_head_seconds: 2,
+    max_contribution_seconds: 45,
     section_ids: [],
     section_order: [],
     merge_section_id: "",

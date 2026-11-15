@@ -94,6 +94,7 @@ describe("CustomizeHost term head pre-roll", () => {
     language: "",
     options: {},
     termHeadSeconds: 2,
+    maxContributionSeconds: 45,
     segments: [{ ...GENERIC_SEGMENT_TEMPLATES[0] }],
   };
 
@@ -179,6 +180,121 @@ describe("CustomizeHost term head pre-roll", () => {
   });
 });
 
+describe("CustomizeHost contribution ceiling", () => {
+  const baseDraft: HostDraft = {
+    id: "rick",
+    name: "Rick",
+    instructions: "Persona.",
+    ttsEngine: "",
+    language: "",
+    options: {},
+    termHeadSeconds: 2,
+    maxContributionSeconds: 45,
+    segments: [{ ...GENERIC_SEGMENT_TEMPLATES[0] }],
+  };
+
+  async function mountHost(host: AIRadioHost, sections: AIRadioSection[]) {
+    sendCommand.mockImplementation(async (command) => {
+      if (command === "ai_radio/hosts/get") return host;
+      if (command === "ai_radio/sections/list") return sections;
+      return [];
+    });
+    const wrapper = mount(CustomizeHost, { props: { hostId: host.id } });
+    await flushPromises();
+    return wrapper;
+  }
+
+  function mountExistingHost(overrides: Partial<AIRadioHost> = {}) {
+    const { host, sections } = compileHost(baseDraft);
+    return mountHost({ ...host, ...overrides }, sections);
+  }
+
+  const ceilingInput = (wrapper: VueWrapper) =>
+    wrapper.find("#customize-host-max-contribution");
+
+  const inputValue = (wrapper: VueWrapper) =>
+    (ceilingInput(wrapper).element as HTMLInputElement).value;
+
+  function savedHost() {
+    const saveCalls = sendCommand.mock.calls.filter(
+      ([command]) => command === "ai_radio/hosts/save",
+    );
+    const lastCall = saveCalls[saveCalls.length - 1];
+    return (lastCall?.[1] as { host?: AIRadioHost } | undefined)?.host;
+  }
+
+  it("shows the host's stored ceiling", async () => {
+    const wrapper = await mountExistingHost({
+      max_contribution_seconds: 60,
+    });
+
+    expect(inputValue(wrapper)).toBe("60");
+  });
+
+  it("sends the edited ceiling with the host save and keeps the other fields", async () => {
+    const wrapper = await mountExistingHost();
+
+    await ceilingInput(wrapper).setValue("30");
+    await save(wrapper);
+
+    expect(aiRadioCommands()).toContain("ai_radio/hosts/save");
+    expect(savedHost()?.max_contribution_seconds).toBe(30);
+    expect(savedHost()?.term_head_seconds).toBe(2);
+    expect(savedHost()?.instructions).toBe("Persona.");
+    expect(savedHost()?.name).toBe("Rick");
+  });
+
+  it("shows 45 for a host payload that predates the field", async () => {
+    const { host, sections } = compileHost(baseDraft);
+    const legacy = { ...host } as Partial<AIRadioHost>;
+    delete legacy.max_contribution_seconds;
+    const wrapper = await mountHost(legacy as AIRadioHost, sections);
+
+    expect(inputValue(wrapper)).toBe("45");
+  });
+
+  it("keeps the control inside 15–90 seconds in 1 second steps", async () => {
+    const wrapper = await mountExistingHost();
+    const input = ceilingInput(wrapper);
+
+    expect(input.attributes("type")).toBe("number");
+    expect(input.attributes("min")).toBe("15");
+    expect(input.attributes("max")).toBe("90");
+    expect(input.attributes("step")).toBe("1");
+  });
+
+  it("shows the field's short description", async () => {
+    const wrapper = await mountExistingHost();
+
+    expect(wrapper.text()).toContain(
+      "Longest a single spoken contribution may run; longer material is cut.",
+    );
+  });
+
+  it("clamps an out-of-range entry before it reaches the payload", async () => {
+    const wrapper = await mountExistingHost();
+
+    await ceilingInput(wrapper).setValue("100");
+    expect(inputValue(wrapper)).toBe("90");
+    await save(wrapper);
+    expect(savedHost()?.max_contribution_seconds).toBe(90);
+
+    await ceilingInput(wrapper).setValue("5");
+    expect(inputValue(wrapper)).toBe("15");
+    await save(wrapper);
+    expect(savedHost()?.max_contribution_seconds).toBe(15);
+  });
+
+  it("always sends a number when a new host is saved", async () => {
+    const wrapper = await mountEditor();
+    await wrapper.find("#customize-host-name").setValue("Morning Crew");
+
+    await save(wrapper);
+
+    expect(savedHost()?.max_contribution_seconds).toBe(45);
+  });
+});
+
 describe("CustomizeHost save", () => {
   it("writes every section before the host that references them", async () => {
     const wrapper = await mountEditor();
@@ -217,6 +333,7 @@ describe("CustomizeHost save", () => {
       language: "",
       options: {},
       term_head_seconds: 2,
+      max_contribution_seconds: 45,
       section_ids: [],
       section_order: [],
       merge_section_id: "",
@@ -267,6 +384,7 @@ describe("CustomizeHost save", () => {
       language: "",
       options: {},
       term_head_seconds: 2,
+      max_contribution_seconds: 45,
       section_ids: [],
       section_order: [],
       merge_section_id: "",
@@ -297,6 +415,7 @@ describe("CustomizeHost save", () => {
       language: "",
       options: {},
       termHeadSeconds: 2,
+      maxContributionSeconds: 45,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 1).map((s) => ({ ...s })),
     };
     const { host, sections } = compileHost(draft);
