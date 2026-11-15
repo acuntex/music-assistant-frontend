@@ -2401,6 +2401,8 @@ export interface AIRadioSection {
   cover_image?: string;
   /** Whether this segment may carry over the next track's intro. */
   allow_post?: boolean;
+  /** Whether this segment may start over the previous track's outro. */
+  allow_pre?: boolean;
 }
 
 export interface AIRadioOptionalGuards {

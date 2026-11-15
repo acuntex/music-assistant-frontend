@@ -67,6 +67,7 @@ export interface ShowSegment {
   prompt: string;
   webSearch: AIRadioWebSearchMode;
   allowPost: boolean;
+  allowPre: boolean;
   maxChars: number;
   plays: PlaysRule;
 }
@@ -120,6 +121,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
       "The next track is <next_songinfo>. Open the program: a brief welcome, one concrete hook about the song or artist, then hand off by naming the artist and title once.",
     webSearch: "disabled",
     allowPost: false,
+    allowPre: false,
     maxChars: 650,
     plays: { kind: "start" },
   },
@@ -129,6 +131,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
     prompt: SONG_TRANSITION_PROMPT,
     webSearch: "allow",
     allowPost: false,
+    allowPre: false,
     maxChars: 650,
     plays: { kind: "every_song" },
   },
@@ -139,6 +142,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
       "Using <weather_hourly> and <timestamp>, give a short spoken weather update: how it feels right now, what changes over the next few hours, and one practical tip if the forecast calls for it. Pick the two or three numbers that matter instead of reading the whole table.",
     webSearch: "disabled",
     allowPost: false,
+    allowPre: false,
     maxChars: 500,
     plays: { kind: "every_n_min", n: 60 },
   },
@@ -149,6 +153,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
       "Give a short global news bulletin anchored to <timestamp>. Search the web for today's headlines and pick two or three current, broadly relevant items, each in one or two spoken sentences, fact-focused and clearly separated. Lead with the item most listeners care about and skip speculation.",
     webSearch: "force",
     allowPost: false,
+    allowPre: false,
     maxChars: 700,
     plays: { kind: "every_n_min", n: 60 },
   },
@@ -159,6 +164,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
       "The next track is <next_songinfo>. Share one genuinely interesting fact about the track or its artist, keeping it precise, engaging, and free of generic trivia.",
     webSearch: "allow",
     allowPost: false,
+    allowPre: false,
     maxChars: 500,
     plays: { kind: "every_n_songs", n: 3 },
   },
@@ -169,6 +175,7 @@ export const GENERIC_SEGMENT_TEMPLATES: ShowSegment[] = [
       "The last track played was <prev_songinfo>. Close the program: one short reflection on the set or that last track, a warm farewell, and a line that sounds like the real end of a radio segment. Do not announce another track.",
     webSearch: "disabled",
     allowPost: false,
+    allowPre: false,
     maxChars: 650,
     plays: { kind: "end" },
   },
@@ -285,6 +292,8 @@ const compileSegments = (
       web_search: segment.webSearch,
       // a closing segment has nothing after it to talk over
       allow_post: segment.allowPost && segment.plays.kind !== "end",
+      // a start segment has nothing before it to talk over
+      allow_pre: segment.allowPre && segment.plays.kind !== "start",
       prompt: segment.prompt,
       constraints: { max_chars: segment.maxChars },
     });
@@ -529,6 +538,7 @@ export const decompileHost = (
       prompt: section.prompt,
       webSearch: section.web_search || "disabled",
       allowPost: section.allow_post ?? false,
+      allowPre: section.allow_pre ?? false,
       maxChars: section.constraints?.max_chars || 0,
       plays,
     };

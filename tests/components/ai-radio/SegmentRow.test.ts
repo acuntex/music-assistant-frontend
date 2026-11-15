@@ -32,6 +32,7 @@ const segment: ShowSegment = {
   prompt: "Say hello, <next_songinfo>.",
   webSearch: "disabled",
   allowPost: false,
+  allowPre: false,
   maxChars: 500,
   plays: { kind: "start" },
 };
@@ -119,11 +120,11 @@ describe("SegmentRow allow-post switch", () => {
       props: { segment, canMoveUp: false, canMoveDown: false },
     });
 
-    expect(wrapper.find('[role="switch"]').exists()).toBe(false);
+    expect(wrapper.find("#allow-post-intro").exists()).toBe(false);
 
     await wrapper.get('button[aria-label="Show more"]').trigger("click");
 
-    expect(wrapper.find('[role="switch"]').exists()).toBe(true);
+    expect(wrapper.find("#allow-post-intro").exists()).toBe(true);
   });
 
   it("has no switch on a closing segment", async () => {
@@ -136,16 +137,54 @@ describe("SegmentRow allow-post switch", () => {
     });
     await wrapper.get('button[aria-label="Show more"]').trigger("click");
 
-    expect(wrapper.find('[role="switch"]').exists()).toBe(false);
+    expect(wrapper.find("#allow-post-intro").exists()).toBe(false);
   });
 
   it("emits the segment with allowPost set when toggled", async () => {
     const wrapper = await mountExpanded();
 
-    await wrapper.get('[role="switch"]').trigger("click");
+    await wrapper.get("#allow-post-intro").trigger("click");
 
     expect(wrapper.emitted("update")?.[0]).toEqual([
       { ...segment, allowPost: true },
+    ]);
+  });
+});
+
+describe("SegmentRow allow-pre switch", () => {
+  it("has no switch on an opening segment", async () => {
+    const wrapper = await mountExpanded();
+
+    expect(wrapper.find("#allow-pre-intro").exists()).toBe(false);
+  });
+
+  it("appears for a segment that has a previous item", async () => {
+    const wrapper = mount(SegmentRow, {
+      props: {
+        segment: { ...segment, plays: { kind: "every_song" } },
+        canMoveUp: false,
+        canMoveDown: false,
+      },
+    });
+    await wrapper.get('button[aria-label="Show more"]').trigger("click");
+
+    expect(wrapper.find("#allow-pre-intro").exists()).toBe(true);
+  });
+
+  it("emits the segment with allowPre set when toggled", async () => {
+    const wrapper = mount(SegmentRow, {
+      props: {
+        segment: { ...segment, plays: { kind: "every_song" } },
+        canMoveUp: false,
+        canMoveDown: false,
+      },
+    });
+    await wrapper.get('button[aria-label="Show more"]').trigger("click");
+
+    await wrapper.get("#allow-pre-intro").trigger("click");
+
+    expect(wrapper.emitted("update")?.[0]).toEqual([
+      { ...segment, plays: { kind: "every_song" }, allowPre: true },
     ]);
   });
 });

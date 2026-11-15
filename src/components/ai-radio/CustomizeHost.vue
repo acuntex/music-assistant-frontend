@@ -383,6 +383,7 @@ function addBlankSegment() {
     prompt: "",
     webSearch: "disabled",
     allowPost: false,
+    allowPre: false,
     maxChars: 500,
     plays: { kind: "every_song" },
   });

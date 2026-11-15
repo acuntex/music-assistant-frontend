@@ -316,6 +316,7 @@ describe("decompileHost", () => {
         prompt: legacySection.prompt,
         webSearch: "allow",
         allowPost: false,
+        allowPre: false,
         maxChars: 500,
         plays: { kind: "every_n_songs", n: 3 },
       },
@@ -386,6 +387,50 @@ describe("allowPost", () => {
     expect(round.segments[0].allowPost).toBe(true);
     const recompiled = compileHost(round);
     expect(recompiled.sections[0].allow_post).toBe(true);
+  });
+});
+
+describe("allowPre", () => {
+  const makeHostDraft = (allowPre: boolean): HostDraft => ({
+    id: "rick",
+    name: "Rick",
+    instructions: "Persona.",
+    ttsEngine: "",
+    language: "",
+    options: {},
+    segments: [{ ...artistFactTemplate, allowPre }],
+  });
+
+  it("compiles each segment's switch into allow_pre on its section", () => {
+    const { sections } = compileHost(makeHostDraft(true));
+    expect(sections.find((s) => s.id === "rick_artist_fact")?.allow_pre).toBe(
+      true,
+    );
+  });
+
+  it("drops the switch for an opening segment, which has nothing to talk over", () => {
+    const draft = makeHostDraft(true);
+    draft.segments[0] = { ...draft.segments[0], plays: { kind: "start" } };
+    const { sections } = compileHost(draft);
+    expect(sections.find((s) => s.id === "rick_artist_fact")?.allow_pre).toBe(
+      false,
+    );
+  });
+
+  it("decompiles a section the server stored without allow_pre as off", () => {
+    // the server only stores the key when it is on
+    const { host, sections } = compileHost(makeHostDraft(false));
+    const stored = sections.map(({ allow_pre: _dropped, ...rest }) => rest);
+    const round = decompileHost(host, stored);
+    expect(round.segments[0].allowPre).toBe(false);
+  });
+
+  it("keeps the switch on across a save and reload", () => {
+    const { host, sections } = compileHost(makeHostDraft(true));
+    const round = decompileHost(host, sections);
+    expect(round.segments[0].allowPre).toBe(true);
+    const recompiled = compileHost(round);
+    expect(recompiled.sections[0].allow_pre).toBe(true);
   });
 });
 

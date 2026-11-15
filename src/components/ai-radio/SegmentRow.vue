@@ -156,6 +156,19 @@
         </div>
       </div>
 
+      <!-- nothing comes before an opening segment, so it has no outro to talk over -->
+      <div
+        v-if="segment.plays.kind !== 'start'"
+        class="flex items-center gap-3"
+      >
+        <FieldLabel
+          :html-for="`allow-pre-${segment.id}`"
+          :label="$t('providers.ai_radio.fields.allow_pre')"
+          :description="$t('providers.ai_radio.field_descriptions.allow_pre')"
+        />
+        <Switch :id="`allow-pre-${segment.id}`" v-model="allowPre" />
+      </div>
+
       <!-- nothing follows a closing segment, so it has no intro to talk over -->
       <div v-if="segment.plays.kind !== 'end'" class="flex items-center gap-3">
         <FieldLabel
@@ -328,6 +341,12 @@ const maxChars = computed({
   get: () => props.segment.maxChars,
   set: (value: number) =>
     emit("update", { ...props.segment, maxChars: Math.max(0, value) }),
+});
+
+const allowPre = computed({
+  get: () => props.segment.allowPre,
+  set: (value: boolean) =>
+    emit("update", { ...props.segment, allowPre: value }),
 });
 
 const allowPost = computed({
