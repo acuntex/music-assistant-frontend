@@ -2928,6 +2928,8 @@
     "play_announcement_message": "Message",
     "play_announcement_message_placeholder": "Dinner is ready!",
     "play_announcement_pre_announce": "Play a chime first",
+    "play_announcement_mix_over": "Mix over the music",
+    "play_announcement_mix_over_description": "Plays over the playing music instead of pausing it. Falls back to interrupting when the stream cannot be mixed.",
     "play_announcement_playing": "Playing...",
     "play_announcement_volume": "Volume",
     "play_announcement_volume_default": "Player default",

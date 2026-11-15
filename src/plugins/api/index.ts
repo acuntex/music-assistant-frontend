@@ -2665,6 +2665,7 @@ export class MusicAssistantApi {
       preAnnounce?: boolean;
       volumeLevel?: number;
       ttsEngine?: string;
+      mode?: "device" | "overlay";
     },
   ): Promise<void> {
     /*
@@ -2674,6 +2675,8 @@ export class MusicAssistantApi {
           - options.preAnnounce: play the chime before the message.
           - options.volumeLevel: volume level to play the announcement at.
           - options.ttsEngine: uid of the engine that speaks the message.
+          - options.mode: 'overlay' mixes the announcement over the playing
+            music, 'device' interrupts it. Omitted leaves the choice to the server.
       Omitted options fall back to the player's announcement settings.
     */
     return this.playerCommand(playerId, "play_announcement", {
@@ -2681,6 +2684,7 @@ export class MusicAssistantApi {
       pre_announce: options?.preAnnounce,
       volume_level: options?.volumeLevel,
       tts_engine: options?.ttsEngine,
+      ...(options?.mode ? { mode: options.mode } : {}),
     });
   }
 

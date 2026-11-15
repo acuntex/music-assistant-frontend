@@ -212,7 +212,7 @@ describe("PlayAnnouncementDialog", () => {
     expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
       "kitchen",
       "Dinner is ready",
-      { preAnnounce: true },
+      { preAnnounce: true, mode: "overlay" },
     );
     // the command only returns once the announcement finished playing, so success
     // is confirmed on the button rather than by a toast long after the fact
@@ -232,14 +232,63 @@ describe("PlayAnnouncementDialog", () => {
     await flushPromises();
 
     await wrapper.get("textarea").setValue("Dinner is ready");
-    await wrapper.get('input[type="checkbox"]').setValue(false);
+    await wrapper.get("#announcement-pre-announce").setValue(false);
     await wrapper.get("form").trigger("submit");
     await flushPromises();
 
     expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
       "kitchen",
       "Dinner is ready",
-      { preAnnounce: false },
+      { preAnnounce: false, mode: "overlay" },
+    );
+  });
+
+  it("mixes the announcement over the playing music by default", async () => {
+    apiMock.playerCommandPlayAnnouncement.mockResolvedValue(undefined);
+    const wrapper = mountDialog();
+
+    eventbus.emit("playAnnouncementDialog", { playerId: "kitchen" });
+    await flushPromises();
+    await wrapper.get("textarea").setValue("Dinner is ready");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    // the server falls back to interrupting on its own when the stream cannot
+    // carry a mix-in, so the dialog asks for the overlay route by default
+    expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
+      "kitchen",
+      "Dinner is ready",
+      { preAnnounce: true, mode: "overlay" },
+    );
+  });
+
+  it("offers mixing over the music switched on by default", async () => {
+    const wrapper = mountDialog();
+
+    eventbus.emit("playAnnouncementDialog", { playerId: "kitchen" });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("play_announcement_mix_over");
+    expect(wrapper.text()).toContain("play_announcement_mix_over_description");
+    const mixOver = wrapper.get("#announcement-mix-over");
+    expect(mixOver.element).toHaveProperty("checked", true);
+  });
+
+  it("interrupts the music when mixing is switched off", async () => {
+    apiMock.playerCommandPlayAnnouncement.mockResolvedValue(undefined);
+    const wrapper = mountDialog();
+
+    eventbus.emit("playAnnouncementDialog", { playerId: "kitchen" });
+    await flushPromises();
+    await wrapper.get("textarea").setValue("Dinner is ready");
+    await wrapper.get("#announcement-mix-over").setValue(false);
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
+      "kitchen",
+      "Dinner is ready",
+      { preAnnounce: true, mode: "device" },
     );
   });
 
@@ -307,7 +356,7 @@ describe("PlayAnnouncementDialog", () => {
     expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
       "kitchen",
       "Dinner is ready",
-      { preAnnounce: false },
+      { preAnnounce: false, mode: "overlay" },
     );
   });
 
@@ -421,7 +470,7 @@ describe("PlayAnnouncementDialog", () => {
     expect(apiMock.playerCommandPlayAnnouncement).toHaveBeenCalledWith(
       "kitchen",
       "Dinner is ready",
-      { preAnnounce: true, volumeLevel: undefined },
+      { preAnnounce: true, volumeLevel: undefined, mode: "overlay" },
     );
   });
 

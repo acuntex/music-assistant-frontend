@@ -239,6 +239,40 @@ describe("MusicAssistantApi error handling", () => {
     await expect(request).resolves.toEqual([]);
   });
 
+  it("sends the announcement route the caller picked", async () => {
+    const request = api.playerCommandPlayAnnouncement("kitchen", "Dinner", {
+      preAnnounce: true,
+      mode: "overlay",
+    });
+
+    expect(transport.lastCommand.command).toBe("players/cmd/play_announcement");
+    expect(transport.lastCommand.args).toEqual(
+      expect.objectContaining({
+        message: "Dinner",
+        pre_announce: true,
+        mode: "overlay",
+      }),
+    );
+    transport.receive({
+      message_id: transport.lastCommand.message_id!,
+      result: null,
+      partial: false,
+    });
+    await expect(request).resolves.toBeNull();
+  });
+
+  it("leaves the announcement route to the server when none is picked", async () => {
+    const request = api.playerCommandPlayAnnouncement("kitchen", "Dinner");
+
+    expect(transport.lastCommand.args).not.toHaveProperty("mode");
+    transport.receive({
+      message_id: transport.lastCommand.message_id!,
+      result: null,
+      partial: false,
+    });
+    await expect(request).resolves.toBeNull();
+  });
+
   it("caches sort options per listing until disconnect", async () => {
     const firstRequest = api.getSortOptions(ListingType.LIBRARY_GENRES);
     const concurrentRequest = api.getSortOptions(ListingType.LIBRARY_GENRES);

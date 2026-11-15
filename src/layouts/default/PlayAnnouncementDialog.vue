@@ -92,6 +92,22 @@
           />
         </div>
 
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between gap-4">
+            <Label for="announcement-mix-over" class="cursor-pointer">
+              {{ $t("play_announcement_mix_over") }}
+            </Label>
+            <Switch
+              id="announcement-mix-over"
+              v-model="mixOver"
+              :disabled="busy"
+            />
+          </div>
+          <p class="text-sm text-muted-foreground">
+            {{ $t("play_announcement_mix_over_description") }}
+          </p>
+        </div>
+
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-4">
             <Label for="announcement-volume">
@@ -188,6 +204,9 @@ const message = ref("");
 // seeded from the player's own setting when the dialog opens; sent explicitly,
 // so the toggle always shows what will actually be played
 const preAnnounce = ref(true);
+// the announcement is mixed over the playing music unless the user asks for it
+// to interrupt; the server falls back to interrupting when it cannot be mixed
+const mixOver = ref(true);
 const sending = ref(false);
 // how long the button stays on its confirmed state before the dialog closes
 const SENT_LINGER_MS = 1200;
@@ -264,6 +283,7 @@ onMounted(() => {
     playerId.value = evt.playerId;
     message.value = "";
     preAnnounce.value = true;
+    mixOver.value = true;
     mode.value = "type";
     clearCloseTimer();
     sent.value = false;
@@ -346,6 +366,7 @@ async function submit(): Promise<void> {
     await api.playerCommandPlayAnnouncement(playerId.value, text, {
       preAnnounce: preAnnounce.value,
       volumeLevel: volumeOverride.value ?? undefined,
+      mode: mixOver.value ? "overlay" : "device",
     });
     sent.value = true;
     closeTimer = window.setTimeout(() => {
