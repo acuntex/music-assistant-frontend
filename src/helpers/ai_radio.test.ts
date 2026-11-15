@@ -2,6 +2,7 @@ import {
   coerceOptionValue,
   compileHost,
   decompileHost,
+  DEFAULT_TERM_HEAD_SECONDS,
   optionValueToText,
   rowsToOptions,
   uniqueHostName,
@@ -27,6 +28,7 @@ const makeDraft = (overrides: Partial<HostDraft> = {}): HostDraft => ({
   ttsEngine: "",
   language: "",
   options: {},
+  termHeadSeconds: 2,
   segments: [],
   ...overrides,
 });
@@ -41,6 +43,7 @@ const makeHost = (overrides: Partial<AIRadioHost> = {}): AIRadioHost => ({
   section_ids: [],
   section_order: [],
   merge_section_id: "",
+  term_head_seconds: 2,
   ...overrides,
 });
 
@@ -97,6 +100,32 @@ describe("language field round-trip", () => {
   it("carries a host's language through decompileHost", () => {
     const draft = decompileHost(makeHost({ language: "fr" }), []);
     expect(draft.language).toBe("fr");
+  });
+});
+
+describe("term_head_seconds round-trip", () => {
+  it("sends the draft's pre-roll on every host save", () => {
+    const { host } = compileHost(makeDraft({ termHeadSeconds: 4.5 }));
+    expect(host.term_head_seconds).toBe(4.5);
+  });
+
+  it("carries a host's pre-roll into the draft", () => {
+    const draft = decompileHost(makeHost({ term_head_seconds: 6 }), []);
+    expect(draft.termHeadSeconds).toBe(6);
+  });
+
+  it("keeps an explicit 0 from turning into the server default", () => {
+    const { host } = compileHost(makeDraft({ termHeadSeconds: 0 }));
+    expect(host.term_head_seconds).toBe(0);
+  });
+
+  it("falls back to the default for a host payload without a pre-roll", () => {
+    // Older servers and stored hosts can omit the key; the server normalizes
+    // on load, so the editor must not show an empty control meanwhile.
+    const legacy = { ...makeHost() } as Partial<AIRadioHost>;
+    delete legacy.term_head_seconds;
+    const draft = decompileHost(legacy as AIRadioHost, []);
+    expect(draft.termHeadSeconds).toBe(DEFAULT_TERM_HEAD_SECONDS);
   });
 });
 

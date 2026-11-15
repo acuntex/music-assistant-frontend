@@ -2510,6 +2510,9 @@ export interface AIRadioHost {
   section_ids: string[];
   section_order: AIRadioSectionOrderRule[];
   merge_section_id: string;
+  // seconds of a spoken contribution that start before the crossfade begins,
+  // the rest plays over the incoming track (0 means the voice starts with the fade)
+  term_head_seconds: number;
   // set on an untouched copy of a bundled preset, which the server keeps in sync
   preset_id?: string;
   preset_hash?: string;

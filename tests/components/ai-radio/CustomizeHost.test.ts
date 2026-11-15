@@ -2,7 +2,7 @@ import CustomizeHost from "@/components/ai-radio/CustomizeHost.vue";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { compileHost, GENERIC_SEGMENT_TEMPLATES } from "@/helpers/ai_radio";
 import type { HostDraft } from "@/helpers/ai_radio";
-import type { AIRadioHost } from "@/plugins/api/interfaces";
+import type { AIRadioHost, AIRadioSection } from "@/plugins/api/interfaces";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { authManager } from "@/plugins/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,6 +85,100 @@ afterEach(() => {
   useHosts().hosts.value = [];
 });
 
+describe("CustomizeHost term head pre-roll", () => {
+  const baseDraft: HostDraft = {
+    id: "rick",
+    name: "Rick",
+    instructions: "Persona.",
+    ttsEngine: "",
+    language: "",
+    options: {},
+    termHeadSeconds: 2,
+    segments: [{ ...GENERIC_SEGMENT_TEMPLATES[0] }],
+  };
+
+  async function mountHost(host: AIRadioHost, sections: AIRadioSection[]) {
+    sendCommand.mockImplementation(async (command) => {
+      if (command === "ai_radio/hosts/get") return host;
+      if (command === "ai_radio/sections/list") return sections;
+      return [];
+    });
+    const wrapper = mount(CustomizeHost, { props: { hostId: host.id } });
+    await flushPromises();
+    return wrapper;
+  }
+
+  function mountExistingHost(overrides: Partial<AIRadioHost> = {}) {
+    const { host, sections } = compileHost(baseDraft);
+    return mountHost({ ...host, ...overrides }, sections);
+  }
+
+  const termHeadInput = (wrapper: VueWrapper) =>
+    wrapper.find("#customize-host-term-head");
+
+  function savedHost() {
+    const saveCalls = sendCommand.mock.calls.filter(
+      ([command]) => command === "ai_radio/hosts/save",
+    );
+    const lastCall = saveCalls[saveCalls.length - 1];
+    return (lastCall?.[1] as { host?: AIRadioHost } | undefined)?.host;
+  }
+
+  it("shows the host's stored pre-roll", async () => {
+    const wrapper = await mountExistingHost({ term_head_seconds: 5.5 });
+
+    expect((termHeadInput(wrapper).element as HTMLInputElement).value).toBe(
+      "5.5",
+    );
+  });
+
+  it("sends the edited pre-roll with the host save and keeps the other fields", async () => {
+    const wrapper = await mountExistingHost();
+
+    await termHeadInput(wrapper).setValue("4.5");
+    await save(wrapper);
+
+    expect(aiRadioCommands()).toContain("ai_radio/hosts/save");
+    expect(savedHost()?.term_head_seconds).toBe(4.5);
+    expect(savedHost()?.instructions).toBe("Persona.");
+    expect(savedHost()?.name).toBe("Rick");
+  });
+
+  it("shows the default for a host payload that predates the field", async () => {
+    // A host stored before the field existed carries no key at all.
+    const { host, sections } = compileHost(baseDraft);
+    const legacy = { ...host } as Partial<AIRadioHost>;
+    delete legacy.term_head_seconds;
+    const wrapper = await mountHost(legacy as AIRadioHost, sections);
+
+    expect((termHeadInput(wrapper).element as HTMLInputElement).value).toBe(
+      "2",
+    );
+  });
+
+  it("keeps the control inside 0–12 seconds in 0.5 steps", async () => {
+    const wrapper = await mountExistingHost();
+    const input = termHeadInput(wrapper);
+
+    expect(input.attributes("type")).toBe("number");
+    expect(input.attributes("min")).toBe("0");
+    expect(input.attributes("max")).toBe("12");
+    expect(input.attributes("step")).toBe("0.5");
+  });
+
+  it("clamps an out-of-range entry before it reaches the payload", async () => {
+    const wrapper = await mountExistingHost();
+
+    await termHeadInput(wrapper).setValue("13");
+    await save(wrapper);
+    expect(savedHost()?.term_head_seconds).toBe(12);
+
+    await termHeadInput(wrapper).setValue("-1");
+    await save(wrapper);
+    expect(savedHost()?.term_head_seconds).toBe(0);
+  });
+});
+
 describe("CustomizeHost save", () => {
   it("writes every section before the host that references them", async () => {
     const wrapper = await mountEditor();
@@ -122,6 +216,7 @@ describe("CustomizeHost save", () => {
       tts_engine: "",
       language: "",
       options: {},
+      term_head_seconds: 2,
       section_ids: [],
       section_order: [],
       merge_section_id: "",
@@ -171,6 +266,7 @@ describe("CustomizeHost save", () => {
       tts_engine: "",
       language: "",
       options: {},
+      term_head_seconds: 2,
       section_ids: [],
       section_order: [],
       merge_section_id: "",
@@ -200,6 +296,7 @@ describe("CustomizeHost save", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 1).map((s) => ({ ...s })),
     };
     const { host, sections } = compileHost(draft);

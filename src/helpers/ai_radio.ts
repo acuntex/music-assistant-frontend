@@ -196,6 +196,27 @@ export const GENERIC_HOST_SEGMENTS: ShowSegment[] =
 export const MERGE_SECTION_PROMPT =
   "Merge the drafts below into one coherent radio break. Preserve factual content, remove duplication, and make the final segment sound like one host speaking naturally.\n<section_drafts>";
 
+/** Server default for how much of a spoken contribution starts before the crossfade. */
+export const DEFAULT_TERM_HEAD_SECONDS = 2;
+/** Server-side bounds for term_head_seconds; the editor control mirrors them. */
+export const TERM_HEAD_SECONDS_MIN = 0;
+export const TERM_HEAD_SECONDS_MAX = 12;
+export const TERM_HEAD_SECONDS_STEP = 0.5;
+
+/**
+ * Brings a term head value into the server's accepted range. A missing or
+ * non-numeric value falls back to the default rather than to 0, because an
+ * older host payload simply predates the field.
+ */
+export const clampTermHeadSeconds = (value: unknown): number => {
+  const seconds = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(seconds)) return DEFAULT_TERM_HEAD_SECONDS;
+  return Math.min(
+    TERM_HEAD_SECONDS_MAX,
+    Math.max(TERM_HEAD_SECONDS_MIN, seconds),
+  );
+};
+
 const GUARD_PLACEHOLDER_TOKENS = ["<weather_hourly>", "<timestamp>"] as const;
 
 const detectRequiredPlaceholders = (prompt: string): string[] => {
@@ -368,6 +389,8 @@ export interface HostDraft {
   language: string;
   // options: free-form key/value pairs passed straight through to the TTS engine
   options: Record<string, unknown>;
+  // termHeadSeconds: how much of the spoken contribution starts before the crossfade
+  termHeadSeconds: number;
   segments: ShowSegment[];
   // Carried through unchanged; the server validates them on save
   presetId?: string;
@@ -403,6 +426,7 @@ export const compileHost = (draft: HostDraft): CompiledHost => {
       section_ids: sections.map((section) => section.id),
       section_order: sectionOrder,
       merge_section_id: mergeSectionId,
+      term_head_seconds: clampTermHeadSeconds(draft.termHeadSeconds),
       ...(draft.presetId && draft.presetHash
         ? { preset_id: draft.presetId, preset_hash: draft.presetHash }
         : {}),
@@ -553,6 +577,7 @@ export const decompileHost = (
     ttsEngine: host.tts_engine,
     language: host.language,
     options: host.options,
+    termHeadSeconds: clampTermHeadSeconds(host.term_head_seconds),
     segments,
     presetId: host.preset_id,
     presetHash: host.preset_hash,

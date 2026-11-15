@@ -114,6 +114,7 @@ describe("compileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 2).map((s) => ({ ...s })),
     };
     const { host, sections } = compileHost(draft);
@@ -137,6 +138,7 @@ describe("compileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 2).map((s) => ({ ...s })),
     });
     const a = compileHost(draftFor("host_a"));
@@ -157,6 +159,7 @@ describe("compileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: [{ ...GENERIC_SEGMENT_TEMPLATES[0], id: "rick_intro" }],
     };
     const { sections } = compileHost(draft);
@@ -173,6 +176,7 @@ describe("compileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: [
         {
           ...artistFactTemplate,
@@ -203,6 +207,7 @@ describe("decompileHost", () => {
       ttsEngine: "engine-1",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 2).map((s) => ({ ...s })),
     };
     const { host, sections } = compileHost(draft);
@@ -224,6 +229,7 @@ describe("decompileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: GENERIC_SEGMENT_TEMPLATES.slice(0, 2).map((s) => ({ ...s })),
     };
     const { host, sections } = compileHost(draft);
@@ -253,6 +259,7 @@ describe("decompileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: [{ ...artistFactTemplate }], // every_n_songs n: 3
     };
     const { host, sections } = compileHost(draft);
@@ -286,6 +293,7 @@ describe("decompileHost", () => {
       tts_engine: "",
       language: "",
       options: {},
+      term_head_seconds: 2,
       section_ids: [legacySection.id, mergeSection.id],
       section_order: [
         {
@@ -329,6 +337,7 @@ describe("decompileHost", () => {
       ttsEngine: "",
       language: "",
       options: {},
+      termHeadSeconds: 2,
       segments: round.segments,
     });
     const rule = recompiled.section_order.find(
@@ -354,6 +363,7 @@ describe("allowPost", () => {
     ttsEngine: "",
     language: "",
     options: {},
+    termHeadSeconds: 2,
     segments: [{ ...artistFactTemplate, allowPost }],
   });
 
@@ -398,6 +408,7 @@ describe("allowPre", () => {
     ttsEngine: "",
     language: "",
     options: {},
+    termHeadSeconds: 2,
     segments: [{ ...artistFactTemplate, allowPre }],
   });
 

@@ -175,6 +175,7 @@ function makeHost(overrides: Partial<AIRadioHost> = {}): AIRadioHost {
     tts_engine: "",
     language: "",
     options: {},
+    term_head_seconds: 2,
     section_ids: [],
     section_order: [],
     merge_section_id: "",

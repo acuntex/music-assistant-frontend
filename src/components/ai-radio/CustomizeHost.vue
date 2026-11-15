@@ -113,6 +113,26 @@
             </Select>
           </div>
 
+          <div class="flex flex-col gap-1.5">
+            <FieldLabel
+              html-for="customize-host-term-head"
+              :label="$t('providers.ai_radio.fields.term_head')"
+            />
+            <Input
+              id="customize-host-term-head"
+              v-model="termHeadText"
+              type="number"
+              class="w-28"
+              :min="TERM_HEAD_SECONDS_MIN"
+              :max="TERM_HEAD_SECONDS_MAX"
+              :step="TERM_HEAD_SECONDS_STEP"
+              @blur="normalizeTermHeadText"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ $t("providers.ai_radio.field_descriptions.term_head") }}
+            </p>
+          </div>
+
           <Accordion type="single" collapsible class="md:col-span-2">
             <AccordionItem value="advanced" class="border-b-0 border-t">
               <AccordionTrigger>
@@ -256,7 +276,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { useShows } from "@/composables/ai-radio/useShows";
 import {
+  clampTermHeadSeconds,
   compileHost,
+  DEFAULT_TERM_HEAD_SECONDS,
   deepClone,
   decompileHost,
   errorMessage,
@@ -266,6 +288,9 @@ import {
   NONE_SELECT_VALUE,
   optionValueToText,
   rowsToOptions,
+  TERM_HEAD_SECONDS_MAX,
+  TERM_HEAD_SECONDS_MIN,
+  TERM_HEAD_SECONDS_STEP,
   type HostDraft,
   type ShowSegment,
 } from "@/helpers/ai_radio";
@@ -337,6 +362,28 @@ const languageSelectValue = computed({
   },
 });
 
+// The number input needs raw text while it is being edited, so the control
+// keeps its own value and the draft takes the clamped one.
+const termHeadText = ref<string | number>("");
+
+watch(termHeadText, (value) => {
+  if (!draft.value) return;
+  const trimmed = String(value).trim();
+  if (trimmed === "") return;
+  const seconds = Number(trimmed);
+  if (!Number.isFinite(seconds)) return;
+  const clamped = clampTermHeadSeconds(seconds);
+  draft.value.termHeadSeconds = clamped;
+  // Echo a clamped entry back so the field never claims a value the payload
+  // does not carry.
+  if (seconds !== clamped) termHeadText.value = clamped;
+});
+
+function normalizeTermHeadText() {
+  if (!draft.value) return;
+  termHeadText.value = draft.value.termHeadSeconds;
+}
+
 function updateSegment(index: number, segment: ShowSegment) {
   draft.value?.segments.splice(index, 1, segment);
 }
@@ -398,6 +445,7 @@ function newHostDraft(): HostDraft {
     ttsEngine: "",
     language: "",
     options: {},
+    termHeadSeconds: DEFAULT_TERM_HEAD_SECONDS,
     segments: deepClone(GENERIC_HOST_SEGMENTS),
   };
 }
@@ -548,6 +596,7 @@ onMounted(async () => {
         : newHostDraft();
     }
     loadOptionRows(draft.value.options);
+    normalizeTermHeadText();
     originalSnapshot = JSON.stringify(draft.value);
   } catch (error) {
     loadError.value = errorMessage(error);
