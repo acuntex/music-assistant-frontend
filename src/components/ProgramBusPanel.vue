@@ -84,6 +84,13 @@
       >
         <div class="program-bus-list-header">
           {{ $t("program_bus.last_header") }}
+          <span
+            v-if="lastHidden"
+            class="program-bus-list-more"
+            data-testid="program-bus-last-more"
+          >
+            {{ $t("program_bus.last_more", { count: lastHidden }) }}
+          </span>
         </div>
         <div
           v-for="(ended, index) in last"
@@ -150,7 +157,14 @@ const busLive = computed(
   () => enabled.value && view.value?.session_active === true,
 );
 const overlays = computed(() => view.value?.overlays ?? []);
-const last = computed(() => view.value?.last ?? []);
+// the ledger keeps up to 16 entries, but the popover has to stay short enough to
+// keep the output paths below it in view: show the newest few, count the rest
+const RECENT_PROGRAMS_VISIBLE = 3;
+const lastAll = computed(() => view.value?.last ?? []);
+const last = computed(() => lastAll.value.slice(0, RECENT_PROGRAMS_VISIBLE));
+const lastHidden = computed(() =>
+  Math.max(0, lastAll.value.length - RECENT_PROGRAMS_VISIBLE),
+);
 const placementPaused = computed(
   () => view.value?.no_audible_position === true,
 );
@@ -317,12 +331,18 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
+.program-bus .program-bus-list-more {
+  margin-left: 4px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .program-bus .program-bus-row {
   display: block;
   font-size: 0.72rem;
   line-height: 1.35;
 }
-
 .program-bus .program-bus-row-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content max-content;

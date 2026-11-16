@@ -480,6 +480,42 @@ describe("ProgramBusPanel", () => {
     },
   );
 
+  it("keeps the finished list short and counts the rest", async () => {
+    const finished = Array.from({ length: 8 }, (_, index) => ({
+      label: `Program ${index + 1}`,
+      state: "aired" as const,
+      reason: null,
+      frames: 48000,
+    }));
+    const wrapper = await mountPanel(busView({ last: finished }));
+
+    // eight rows would push the output paths below the popover's fold
+    expect(wrapper.findAll("[data-testid='program-bus-ended']")).toHaveLength(
+      3,
+    );
+    expect(wrapper.get("[data-testid='program-bus-last-more']").text()).toBe(
+      "+5 earlier",
+    );
+    expect(wrapper.text()).not.toContain("Program 8");
+  });
+
+  it("counts nothing extra while the whole history fits", async () => {
+    const wrapper = await mountPanel(
+      busView({
+        last: [
+          { label: "Weather", state: "aired", reason: null, frames: 48000 },
+        ],
+      }),
+    );
+
+    expect(wrapper.findAll("[data-testid='program-bus-ended']")).toHaveLength(
+      1,
+    );
+    expect(wrapper.find("[data-testid='program-bus-last-more']").exists()).toBe(
+      false,
+    );
+  });
+
   it("shows a reason it does not know as it came from the server", async () => {
     const wrapper = await mountPanel(
       busView({

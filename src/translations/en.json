@@ -3319,6 +3319,7 @@
         "no_audible_position": "placement paused: position unknown",
         "unavailable": "Program bus status is unavailable",
         "last_header": "Recently finished",
+        "last_more": "+{count} earlier",
         "open_settings": "Open stream settings",
         "flow_only_note": "Applies to the flow sessions of this player only",
         "state_scheduled": "scheduled",
