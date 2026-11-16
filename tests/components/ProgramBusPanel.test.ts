@@ -98,6 +98,36 @@ describe("ProgramBusPanel", () => {
     );
   });
 
+  it("claims no status before the first reading arrives", async () => {
+    let answer: (view: ProgramBusView) => void = () => undefined;
+    apiMock.sendCommand.mockReturnValue(
+      new Promise<ProgramBusView>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const wrapper = mount(ProgramBusPanel, {
+      props: { queueId: QUEUE_ID },
+      global: { plugins: [i18n] },
+    });
+    await flushPromises();
+
+    // nothing was read yet, so neither "on" nor "off" may be claimed
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("");
+    expect(wrapper.text()).not.toContain("Off");
+
+    answer(busView());
+    await flushPromises();
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
+  });
+
+  it("does not call the bus off when its status could not be read", async () => {
+    const wrapper = await mountPanel(new Error("connection lost"));
+
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("");
+    expect(wrapper.text()).not.toContain("Program bus is off");
+    expect(wrapper.text()).toContain("Program bus status is unavailable");
+  });
+
   it("says a flow session is missing when the bus is on but nothing mixes", async () => {
     const wrapper = await mountPanel(
       busView({ session_active: false, format: null }),

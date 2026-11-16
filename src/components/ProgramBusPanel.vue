@@ -20,7 +20,11 @@
       <span class="audio-processing-header-title">{{
         $t("program_bus.title")
       }}</span>
-      <span class="audio-processing-header-meta">{{ statusLabel }}</span>
+      <span
+        class="audio-processing-header-meta"
+        data-testid="program-bus-status"
+        >{{ statusLabel }}</span
+      >
       <span class="audio-processing-header-rule" aria-hidden="true"></span>
     </div>
 
@@ -151,9 +155,12 @@ const placementPaused = computed(
   () => view.value?.no_audible_position === true,
 );
 
-const statusLabel = computed(() =>
-  enabled.value ? $t("program_bus.on") : $t("program_bus.off"),
-);
+// nothing has been read yet (or the read failed), so the panel claims no state at
+// all instead of calling the bus off while the status is unknown
+const statusLabel = computed(() => {
+  if (!view.value) return "";
+  return enabled.value ? $t("program_bus.on") : $t("program_bus.off");
+});
 
 const subtitleParts = computed(() => {
   if (!view.value) return [];
