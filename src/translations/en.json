@@ -3314,6 +3314,7 @@
         "off": "Off",
         "off_hint": "Turns on in the Streams settings",
         "no_session": "No flow session is mixing programs",
+        "empty": "Nothing scheduled",
         "session_active": "Session active",
         "flow_claim": "Mixes into this player's stream",
         "boundary_claim": "Crosses track boundaries",

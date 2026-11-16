@@ -49,6 +49,14 @@
         {{ $t("program_bus.no_audible_position") }}
       </p>
 
+      <p
+        v-if="nothingScheduled"
+        class="program-bus-note"
+        data-testid="program-bus-empty"
+      >
+        {{ $t("program_bus.empty") }}
+      </p>
+
       <div
         v-if="overlays.length"
         class="program-bus-list"
@@ -167,6 +175,12 @@ const lastHidden = computed(() =>
 );
 const placementPaused = computed(
   () => view.value?.no_audible_position === true,
+);
+// a live session without anything in it would otherwise show only its subtitle;
+// without a session the missing-session line already says why nothing mixes
+const nothingScheduled = computed(
+  () =>
+    busLive.value && overlays.value.length === 0 && lastAll.value.length === 0,
 );
 
 // nothing has been read yet (or the read failed), so the panel claims no state at
@@ -343,6 +357,7 @@ onUnmounted(() => {
   font-size: 0.72rem;
   line-height: 1.35;
 }
+
 .program-bus .program-bus-row-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content max-content;
@@ -357,10 +372,16 @@ onUnmounted(() => {
 
 .program-bus .program-bus-row-state,
 .program-bus .program-bus-row-time,
-.program-bus .program-bus-row-reason,
 .program-bus .program-bus-row-detail {
   color: var(--muted-foreground);
   white-space: nowrap;
+}
+
+/* the reason is the last column and the only free text in a row, so it wraps
+   instead of widening the popover in a language with longer words */
+.program-bus .program-bus-row-reason {
+  color: var(--muted-foreground);
+  text-align: right;
 }
 
 .program-bus .program-bus-row-detail {

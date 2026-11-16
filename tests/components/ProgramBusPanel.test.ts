@@ -269,6 +269,35 @@ describe("ProgramBusPanel", () => {
     expect(wrapper.text()).toContain("Placement paused — position unknown");
   });
 
+  it("says nothing is scheduled while the bus holds no program at all", async () => {
+    const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
+
+    expect(wrapper.get("[data-testid='program-bus-empty']").text()).toBe(
+      "Nothing scheduled",
+    );
+  });
+
+  it("leaves the empty line out as soon as a program is there", async () => {
+    const wrapper = await mountPanel(
+      busView({
+        overlays: [
+          {
+            label: "Transition",
+            state: "scheduled",
+            start_in_seconds: 7,
+            frames: 48000,
+            head_seconds: 0,
+            late_by_seconds: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(wrapper.find("[data-testid='program-bus-empty']").exists()).toBe(
+      false,
+    );
+  });
+
   it("keeps the session state but no zero claims when nothing is claimed", async () => {
     const wrapper = await mountPanel();
 
