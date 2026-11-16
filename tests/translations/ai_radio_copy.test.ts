@@ -26,8 +26,7 @@ describe("host field copy", () => {
   });
 
   it("names the Streams settings the way the settings page does", () => {
-    // both links point at the same page, so they must not spell it two ways
-    expect(messages.program_bus.open_settings).toBe("Open Streams settings");
+    // the queue DJ status is the one place that tells a reader where the switch is
     expect(messages.providers.ai_radio.queue_dj.bus_off_link).toBe(
       "Open Streams settings",
     );
@@ -36,5 +35,24 @@ describe("host field copy", () => {
     const allowPre = messages.providers.ai_radio.field_descriptions.allow_pre;
     expect(allowPre).toContain("Streams core configuration");
     expect(allowPre).not.toContain("Core →");
+  });
+});
+
+// the ledger names what it did; the popover says what the listener saw
+describe("program bus copy", () => {
+  it("names an ended program in the reader's words", () => {
+    const bus = messages.program_bus;
+
+    expect(bus.state_aired).toBe("played");
+    expect(bus.state_dropped).toBe("skipped");
+    expect(bus.reason_skipped).toBe("skipped");
+    expect(bus.reason_bus_replaced).toBe("replaced");
+    // the summary counts the same way the rows read
+    expect(bus.summary_played).toContain("played");
+    expect(bus.summary_dropped).toContain("skipped");
+    // no ledger word survives in the words a reader can see
+    for (const value of Object.values(bus)) {
+      expect(value).not.toMatch(/\baired\b|\bdropped\b|bus_replaced/);
+    }
   });
 });

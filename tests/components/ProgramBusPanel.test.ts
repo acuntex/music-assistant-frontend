@@ -1,8 +1,8 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProgramBusPanel from "@/components/ProgramBusPanel.vue";
 import { i18n } from "@/plugins/i18n";
-import type { ProgramBusView } from "@/plugins/api/interfaces";
+import type { ProgramBusEnded, ProgramBusView } from "@/plugins/api/interfaces";
 
 const apiMock = vi.hoisted(() => ({ sendCommand: vi.fn() }));
 const routerMock = vi.hoisted(() => ({ push: vi.fn() }));
@@ -30,6 +30,15 @@ function busView(overrides: Partial<ProgramBusView> = {}): ProgramBusView {
   };
 }
 
+function endedPrograms(count: number): ProgramBusEnded[] {
+  return Array.from({ length: count }, (_, index) => ({
+    label: `Program ${index + 1}`,
+    state: "aired" as const,
+    reason: null,
+    frames: 48000,
+  }));
+}
+
 async function mountPanel(view: ProgramBusView | Error = busView()) {
   if (view instanceof Error) {
     apiMock.sendCommand.mockRejectedValue(view);
@@ -42,6 +51,27 @@ async function mountPanel(view: ProgramBusView | Error = busView()) {
   });
   await flushPromises();
   return wrapper;
+}
+
+function toggle(wrapper: VueWrapper) {
+  return wrapper.get('[data-testid="program-bus-details-toggle"]');
+}
+
+async function openDetails(wrapper: VueWrapper) {
+  await toggle(wrapper).trigger("click");
+}
+
+// most of what the bus holds is only shown once the reader asks for it
+async function mountOpenPanel(view: ProgramBusView = busView()) {
+  const wrapper = await mountPanel(view);
+  await openDetails(wrapper);
+  return wrapper;
+}
+
+function subtitleLines(wrapper: VueWrapper): string[] {
+  return wrapper
+    .findAll(".audio-processing-stage-subtitle-line")
+    .map((line) => line.text());
 }
 
 beforeEach(() => {
@@ -63,7 +93,7 @@ describe("ProgramBusPanel", () => {
     });
   });
 
-  it("says the bus is off and links to the Streams settings", async () => {
+  it("shows nothing while the bus is off", async () => {
     const wrapper = await mountPanel(
       busView({
         enabled: false,
@@ -72,13 +102,44 @@ describe("ProgramBusPanel", () => {
       }),
     );
 
-    expect(wrapper.text()).toContain("Turns on in the Streams settings");
-    expect(wrapper.text()).toContain("Off");
-    const link = wrapper.get(".audio-processing-stage-title");
-    expect(link.element.tagName).toBe("BUTTON");
-    expect(link.attributes("title")).toBe("Open Streams settings");
-    await link.trigger("click");
-    expect(routerMock.push).toHaveBeenCalledWith("/settings/editcore/streams");
+    // the bus is an experimental switch: a reader without it sees the chain as if
+    // there were no bus, not the off state of a feature they never turned on
+    expect(wrapper.find('[data-testid="program-bus"]').exists()).toBe(false);
+    expect(wrapper.find(".audio-processing-stage").exists()).toBe(false);
+    expect(wrapper.find(".audio-processing-header").exists()).toBe(false);
+    expect(wrapper.text()).toBe("");
+  });
+
+  it("leaves the off hint to the queue DJ status", async () => {
+    const wrapper = await mountPanel(
+      busView({ enabled: false, session_active: false, format: null }),
+    );
+
+    // "DJ is on, bus is off" belongs where the switch lives, not in this panel
+    expect(wrapper.text()).not.toContain("Streams settings");
+    expect(wrapper.find("button").exists()).toBe(false);
+  });
+
+  it("shows nothing before its first reading arrives", async () => {
+    let answer: (view: ProgramBusView) => void = () => undefined;
+    apiMock.sendCommand.mockReturnValue(
+      new Promise<ProgramBusView>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const wrapper = mount(ProgramBusPanel, {
+      props: { queueId: QUEUE_ID },
+      global: { plugins: [i18n] },
+    });
+    await flushPromises();
+
+    // the panel can not know whether the bus is on, so it claims no section at all
+    expect(wrapper.find('[data-testid="program-bus"]').exists()).toBe(false);
+    expect(wrapper.text()).toBe("");
+
+    answer(busView());
+    await flushPromises();
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
   });
 
   it("names its group after what it holds, not after its only row", async () => {
@@ -92,17 +153,24 @@ describe("ProgramBusPanel", () => {
     );
   });
 
-  it("states the bus status once, in the header line", async () => {
-    const wrapper = await mountPanel(
-      busView({ enabled: false, session_active: false, format: null }),
-    );
+  it("heads the section like its neighbours, with a neutral dot", async () => {
+    const wrapper = await mountPanel();
 
-    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe(
-      "Off",
-    );
+    // INPUT and OUTPUT colour their dot by quality; a live bus is not a quality,
+    // so its dot stays the neutral one PROCESSING uses
+    const dot = wrapper.get(".audio-processing-quality-dot");
+    expect(dot.classes()).toContain("audio-processing-quality-dot--neutral");
+    expect(dot.attributes("style")).toBeUndefined();
+    expect(wrapper.find(".audio-processing-header-rule").exists()).toBe(true);
+  });
+
+  it("states the bus status once, in the header line", async () => {
+    const wrapper = await mountPanel();
+
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
     // the stage carries no second badge: badges here are for "bit perfect"
     expect(wrapper.find(".audio-processing-stage-badge").exists()).toBe(false);
-    expect(wrapper.text().match(/Off/g)).toHaveLength(1);
+    expect(wrapper.text().match(/On/g)).toHaveLength(1);
   });
 
   it("reports a live session, its format and the claims held for it", async () => {
@@ -122,34 +190,44 @@ describe("ProgramBusPanel", () => {
     );
   });
 
-  it("claims no status before the first reading arrives", async () => {
-    let answer: (view: ProgramBusView) => void = () => undefined;
-    apiMock.sendCommand.mockReturnValue(
-      new Promise<ProgramBusView>((resolve) => {
-        answer = resolve;
-      }),
+  it("tells the session state on the stage, not in a line of its own", async () => {
+    const wrapper = await mountPanel(
+      busView({ claims: { flow: true, boundary: true } }),
     );
-    const wrapper = mount(ProgramBusPanel, {
-      props: { queueId: QUEUE_ID },
-      global: { plugins: [i18n] },
-    });
-    await flushPromises();
 
-    // nothing was read yet, so neither "on" nor "off" may be claimed
-    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("");
-    expect(wrapper.text()).not.toContain("Off");
-
-    answer(busView());
-    await flushPromises();
-    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
+    expect(subtitleLines(wrapper)).toEqual([
+      "48 kHz · 32-bit · 2 ch",
+      "Mixes into this player's stream · Crosses track boundaries",
+      "Nothing scheduled",
+      "Applies to the flow sessions of this player only",
+    ]);
   });
 
-  it("does not call the bus off when its status could not be read", async () => {
+  it("stays out of the chain when its first reading fails", async () => {
     const wrapper = await mountPanel(new Error("connection lost"));
 
-    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("");
-    expect(wrapper.text()).not.toContain("Turns on in the Streams settings");
-    expect(wrapper.text()).toContain("Program bus status is unavailable");
+    // a failed read can not tell whether the bus is on, so the panel claims no
+    // section instead of showing one to every reader
+    expect(wrapper.find('[data-testid="program-bus"]').exists()).toBe(false);
+    expect(wrapper.text()).toBe("");
+  });
+
+  it("keeps the missing reading inside the stage node", async () => {
+    vi.useFakeTimers();
+    const wrapper = await mountPanel();
+    apiMock.sendCommand.mockRejectedValue(new Error("connection lost"));
+
+    vi.advanceTimersByTime(3000);
+    await flushPromises();
+
+    const stage = wrapper.get(".audio-processing-stage");
+    const warning = stage.get('[data-testid="program-bus-error"]');
+    expect(warning.text()).toBe("Program bus status is unavailable");
+    // nothing but the stage sits between the header and the outputs, so the
+    // chain's connector line is not interrupted
+    expect(
+      wrapper.get(".audio-processing-section").element.children,
+    ).toHaveLength(1);
   });
 
   it("says a flow session is missing when the bus is on but nothing mixes", async () => {
@@ -162,7 +240,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("shows a planned program with its label, state and seconds to go", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -187,7 +265,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("says a program starting now instead of counting down", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -208,7 +286,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("keeps an unknown start unknown instead of making one up", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -229,7 +307,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("shows why a program was dropped", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         last: [
           {
@@ -244,13 +322,15 @@ describe("ProgramBusPanel", () => {
 
     const row = wrapper.get('[data-testid="program-bus-last"]');
     expect(row.text()).toContain("Weather");
-    expect(row.text()).toContain("dropped");
+    // the ledger says "dropped"; the row says what the listener saw happen
+    expect(row.text()).toContain("skipped");
+    expect(row.text()).not.toContain("dropped");
     expect(row.text()).toContain("missed its boundary");
     expect(row.text()).not.toContain("too_late");
   });
 
   it("shows an aired program without a reason", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         last: [
           { label: "Weather", state: "aired", reason: null, frames: 48000 },
@@ -259,8 +339,57 @@ describe("ProgramBusPanel", () => {
     );
 
     const row = wrapper.get('[data-testid="program-bus-last"]');
-    expect(row.text()).toContain("aired");
+    expect(row.text()).toContain("played");
+    expect(row.text()).not.toContain("aired");
     expect(row.text()).not.toContain("null");
+  });
+
+  it("names an ended program in the reader's words, not the ledger's", async () => {
+    const wrapper = await mountOpenPanel(
+      busView({
+        last: [
+          { label: "Weather", state: "aired", reason: null, frames: 48000 },
+          {
+            label: "News",
+            state: "dropped",
+            reason: "bus_replaced",
+            frames: 48000,
+          },
+        ],
+      }),
+    );
+
+    const rows = wrapper.findAll('[data-testid="program-bus-ended"]');
+    expect(
+      rows.map((row) => row.find(".program-bus-row-state").text()),
+    ).toEqual(["played", "skipped"]);
+    expect(wrapper.get('[data-testid="program-bus-reason"]').text()).toBe(
+      "replaced",
+    );
+    expect(wrapper.text()).not.toMatch(/aired|dropped|bus_replaced/);
+  });
+
+  it("says a reason that only repeats the status word once", async () => {
+    const wrapper = await mountOpenPanel(
+      busView({
+        last: [
+          {
+            label: "Weather",
+            state: "dropped",
+            reason: "skipped",
+            frames: 48000,
+          },
+        ],
+      }),
+    );
+
+    const row = wrapper.get('[data-testid="program-bus-ended"]');
+    expect(
+      row.findAll(".program-bus-row-state").map((cell) => cell.text()),
+    ).toEqual(["skipped"]);
+    expect(row.text()).toContain("Weather");
+    // the reason is the same word, so it is not spelled twice
+    expect(row.find('[data-testid="program-bus-reason"]').exists()).toBe(false);
   });
 
   it("says placement is paused when there is no audible position", async () => {
@@ -272,9 +401,7 @@ describe("ProgramBusPanel", () => {
   it("says nothing is scheduled while the bus holds no program at all", async () => {
     const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
 
-    expect(wrapper.get("[data-testid='program-bus-empty']").text()).toBe(
-      "Nothing scheduled",
-    );
+    expect(subtitleLines(wrapper)).toContain("Nothing scheduled");
   });
 
   it("leaves the empty line out as soon as a program is there", async () => {
@@ -293,9 +420,7 @@ describe("ProgramBusPanel", () => {
       }),
     );
 
-    expect(wrapper.find("[data-testid='program-bus-empty']").exists()).toBe(
-      false,
-    );
+    expect(subtitleLines(wrapper)).not.toContain("Nothing scheduled");
   });
 
   it("keeps the session state but no zero claims when nothing is claimed", async () => {
@@ -306,18 +431,25 @@ describe("ProgramBusPanel", () => {
     expect(text).not.toContain("Crosses track boundaries");
   });
 
-  it("shows an error state instead of breaking when the command fails", async () => {
-    const wrapper = await mountPanel(new Error("connection lost"));
+  it("keeps a reading it already had when the command fails", async () => {
+    vi.useFakeTimers();
+    const wrapper = await mountPanel();
+    apiMock.sendCommand.mockRejectedValue(new Error("connection lost"));
 
-    expect(wrapper.text()).toContain("Program bus status is unavailable");
+    vi.advanceTimersByTime(3000);
+    await flushPromises();
+
+    // the bus keeps mixing; only its reading is missing
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
     expect(wrapper.find('[data-testid="program-bus-overlay"]').exists()).toBe(
       false,
     );
+    expect(wrapper.text()).toContain("Program bus status is unavailable");
   });
 
   it("keeps what it had when a later poll fails", async () => {
     vi.useFakeTimers();
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -367,7 +499,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("is no control: a program never plays, seeks or drags", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -406,7 +538,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("shows the head a program was planned with and how late it landed", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -427,7 +559,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("keeps a program without a head or lateness free of empty numbers", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -450,7 +582,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("leaves the lateness out of a punctual program", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -470,7 +602,7 @@ describe("ProgramBusPanel", () => {
   });
 
   it("leaves the head out of a program that carries none", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -498,7 +630,7 @@ describe("ProgramBusPanel", () => {
   ])(
     "names a drop of reason %s in the reader's words",
     async (reason, label) => {
-      const wrapper = await mountPanel(
+      const wrapper = await mountOpenPanel(
         busView({
           last: [{ label: "Weather", state: "dropped", reason, frames: 48000 }],
         }),
@@ -509,44 +641,8 @@ describe("ProgramBusPanel", () => {
     },
   );
 
-  it("keeps the finished list short and counts the rest", async () => {
-    const finished = Array.from({ length: 8 }, (_, index) => ({
-      label: `Program ${index + 1}`,
-      state: "aired" as const,
-      reason: null,
-      frames: 48000,
-    }));
-    const wrapper = await mountPanel(busView({ last: finished }));
-
-    // eight rows would push the output paths below the popover's fold
-    expect(wrapper.findAll("[data-testid='program-bus-ended']")).toHaveLength(
-      3,
-    );
-    expect(wrapper.get("[data-testid='program-bus-last-more']").text()).toBe(
-      "+5 earlier",
-    );
-    expect(wrapper.text()).not.toContain("Program 8");
-  });
-
-  it("counts nothing extra while the whole history fits", async () => {
-    const wrapper = await mountPanel(
-      busView({
-        last: [
-          { label: "Weather", state: "aired", reason: null, frames: 48000 },
-        ],
-      }),
-    );
-
-    expect(wrapper.findAll("[data-testid='program-bus-ended']")).toHaveLength(
-      1,
-    );
-    expect(wrapper.find("[data-testid='program-bus-last-more']").exists()).toBe(
-      false,
-    );
-  });
-
   it("shows a reason it does not know as it came from the server", async () => {
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         last: [
           {
@@ -564,8 +660,141 @@ describe("ProgramBusPanel", () => {
     );
   });
 
-  it("leaves the old queue behind when the panel is pointed at another one", async () => {
+  it("counts what the bus holds and played on one line", async () => {
     const wrapper = await mountPanel(
+      busView({
+        overlays: [
+          {
+            label: "Transition",
+            state: "scheduled",
+            start_in_seconds: 7,
+            frames: 48000,
+            head_seconds: 0,
+            late_by_seconds: 0,
+          },
+        ],
+        last: [
+          { label: "Weather", state: "aired", reason: null, frames: 48000 },
+          {
+            label: "News",
+            state: "dropped",
+            reason: "too_late",
+            frames: 48000,
+          },
+        ],
+      }),
+    );
+
+    expect(subtitleLines(wrapper)).toContain(
+      "1 scheduled · 1 played · 1 skipped",
+    );
+  });
+
+  it("keeps the program list closed until it is asked for", async () => {
+    const wrapper = await mountPanel(busView({ last: endedPrograms(4) }));
+
+    expect(toggle(wrapper).attributes("aria-expanded")).toBe("false");
+    expect(toggle(wrapper).text()).toBe("Show details");
+    expect(wrapper.findAll('[data-testid="program-bus-ended"]')).toHaveLength(
+      0,
+    );
+    expect(wrapper.text()).not.toContain("Program 1");
+    // the count is the only thing the closed panel spends on them
+    expect(subtitleLines(wrapper)).toContain("4 played");
+  });
+
+  it("opens and closes the programs it counted", async () => {
+    const wrapper = await mountPanel(busView({ last: endedPrograms(4) }));
+
+    await openDetails(wrapper);
+
+    expect(toggle(wrapper).attributes("aria-expanded")).toBe("true");
+    expect(toggle(wrapper).text()).toBe("Hide details");
+    expect(wrapper.findAll('[data-testid="program-bus-ended"]')).toHaveLength(
+      4,
+    );
+
+    await openDetails(wrapper);
+    expect(wrapper.findAll('[data-testid="program-bus-ended"]')).toHaveLength(
+      0,
+    );
+  });
+
+  it("points the open list at the row it controls", async () => {
+    const wrapper = await mountPanel(busView({ last: endedPrograms(1) }));
+    const controls = toggle(wrapper).attributes("aria-controls");
+    if (!controls) throw new Error("the toggle names no list");
+
+    expect(wrapper.find(`#${CSS.escape(controls)}`).exists()).toBe(false);
+
+    await openDetails(wrapper);
+    expect(wrapper.find(`#${CSS.escape(controls)}`).exists()).toBe(true);
+  });
+
+  it("spends the same height however many programs the bus played", async () => {
+    const few = await mountPanel(busView({ last: endedPrograms(2) }));
+    const many = await mountPanel(busView({ last: endedPrograms(40) }));
+    const copyChildren = (wrapper: VueWrapper) =>
+      wrapper.get(".audio-processing-stage-copy").element.children.length;
+
+    // closed, neither lists a row nor grows a block: only the counted line differs
+    expect(many.findAll('[data-testid="program-bus-ended"]')).toHaveLength(0);
+    expect(copyChildren(many)).toBe(copyChildren(few));
+    expect(subtitleLines(many)).toContain("40 played");
+  });
+
+  it("spends nothing on a bus that has nothing to show", async () => {
+    const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
+
+    expect(
+      wrapper.find('[data-testid="program-bus-details-toggle"]').exists(),
+    ).toBe(false);
+    expect(
+      subtitleLines(wrapper).filter((line) =>
+        /^\d+ (scheduled|played|skipped)/.test(line),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps the stage as the only child of its section", async () => {
+    const wrapper = await mountPanel(
+      busView({
+        overlays: [
+          {
+            label: "Transition",
+            state: "scheduled",
+            start_in_seconds: 7,
+            frames: 48000,
+            head_seconds: 0,
+            late_by_seconds: 0,
+          },
+        ],
+        last: endedPrograms(2),
+      }),
+    );
+    await openDetails(wrapper);
+
+    const section = wrapper.get('[data-testid="program-bus"]');
+    const body = section.get(".audio-processing-section");
+    expect(body.element.children).toHaveLength(1);
+    expect(body.element.children[0].classList).toContain(
+      "audio-processing-stage",
+    );
+    // every block of the panel hangs inside the node, where the connector runs
+    // past it, instead of between the node and the outputs
+    expect(section.findAll(".audio-processing-stage-connector")).toHaveLength(
+      1,
+    );
+    const copy = section.get(".audio-processing-stage-copy");
+    expect(
+      copy.findAll("p, ul, [data-testid^='program-bus-']"),
+    ).not.toHaveLength(0);
+    expect(section.findAll("p")).toHaveLength(copy.findAll("p").length);
+    expect(copy.findAll('[data-testid="program-bus-ended"]')).toHaveLength(2);
+  });
+
+  it("leaves the old queue behind when the panel is pointed at another one", async () => {
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {
@@ -579,6 +808,7 @@ describe("ProgramBusPanel", () => {
         ],
       }),
     );
+    expect(wrapper.text()).toContain("First queue");
     apiMock.sendCommand.mockResolvedValue(
       busView({
         overlays: [
@@ -596,8 +826,12 @@ describe("ProgramBusPanel", () => {
 
     await wrapper.setProps({ queueId: "queue-2" });
     expect(wrapper.text()).not.toContain("First queue");
+    expect(
+      wrapper.find('[data-testid="program-bus-details-toggle"]').exists(),
+    ).toBe(false);
 
     await flushPromises();
+    await openDetails(wrapper);
     expect(wrapper.text()).toContain("Second queue");
     expect(apiMock.sendCommand).toHaveBeenLastCalledWith(
       "streams/program_bus",
@@ -634,7 +868,7 @@ describe("ProgramBusPanel", () => {
 
   it("keeps a very long label in its own column", async () => {
     const label = "x".repeat(200);
-    const wrapper = await mountPanel(
+    const wrapper = await mountOpenPanel(
       busView({
         overlays: [
           {

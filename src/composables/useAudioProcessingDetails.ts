@@ -69,6 +69,8 @@ interface AudioProcessingDisplayStageBase {
   title: string;
   subtitleParts?: string[];
   atomicSubtitleParts?: boolean;
+  // further subtitle rows, each on a line of its own
+  subtitleLines?: string[];
   badge?: string;
   details?: string[];
   // set when one settings page controls the stage

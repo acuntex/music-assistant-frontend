@@ -57,6 +57,21 @@
           </span>
         </template>
       </div>
+      <div
+        v-if="stage.subtitleLines?.length"
+        class="audio-processing-stage-subtitle"
+      >
+        <div
+          v-for="(line, index) in stage.subtitleLines"
+          :key="`${index}-${line}`"
+          class="audio-processing-stage-subtitle-line"
+        >
+          {{ line }}
+        </div>
+      </div>
+      <!-- content a stage owns beyond its subtitle, kept inside the node so the
+           chain's connector runs past it instead of breaking at a separate block -->
+      <slot name="extra"></slot>
     </div>
     <Popover v-if="stage.details?.length">
       <PopoverTrigger as-child>

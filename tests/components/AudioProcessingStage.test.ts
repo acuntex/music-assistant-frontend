@@ -63,6 +63,71 @@ describe("AudioProcessingStage", () => {
     ).toBe(true);
   });
 
+  it("renders further subtitle rows below the first", () => {
+    const wrapper = mountStage({
+      key: "program-bus",
+      icon: TestIcon,
+      title: "Program bus",
+      subtitleParts: ["Session active"],
+      subtitleLines: [
+        "48 kHz · 32-bit · 2 ch",
+        "Applies to the flow sessions of this player only",
+      ],
+    });
+
+    expect(wrapper.get(".audio-processing-stage-subtitle").text()).toBe(
+      "Session active",
+    );
+    expect(
+      wrapper
+        .findAll(".audio-processing-stage-subtitle-line")
+        .map((line) => line.text()),
+    ).toEqual([
+      "48 kHz · 32-bit · 2 ch",
+      "Applies to the flow sessions of this player only",
+    ]);
+  });
+
+  it("leaves the extra rows out of a stage that carries none", () => {
+    const wrapper = mountStage({
+      key: "dsp-state-0",
+      icon: TestIcon,
+      title: "DSP active",
+    });
+
+    expect(
+      wrapper.findAll(".audio-processing-stage-subtitle-line"),
+    ).toHaveLength(0);
+  });
+
+  it("keeps content a stage owns inside its copy column", () => {
+    const wrapper = mount(AudioProcessingStage, {
+      props: {
+        stage: { key: "program-bus", icon: TestIcon, title: "Program bus" },
+      },
+      slots: { extra: '<p data-testid="stage-extra">1 played</p>' },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Popover: { template: "<div><slot /></div>" },
+          PopoverContent: { template: "<div><slot /></div>" },
+          PopoverTrigger: { props: ["asChild"], template: "<slot />" },
+        },
+      },
+    });
+
+    // the connector draws the chain past everything a stage reads, so extra
+    // content belongs inside the node's copy, not beside it
+    expect(
+      wrapper
+        .get(".audio-processing-stage-copy [data-testid='stage-extra']")
+        .text(),
+    ).toBe("1 played");
+    expect(wrapper.find(".audio-processing-stage-connector").exists()).toBe(
+      true,
+    );
+  });
+
   it("allows user-defined titles to wrap", () => {
     const wrapper = mountStage({
       key: "dsp-preset",

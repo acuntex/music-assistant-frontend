@@ -104,6 +104,18 @@ function programBusOff() {
   };
 }
 
+function programBusOn() {
+  return {
+    enabled: true,
+    session_active: true,
+    no_audible_position: false,
+    format: { sample_rate: 48000, bit_depth: 32, channels: 2 },
+    claims: { flow: true, boundary: false },
+    overlays: [],
+    last: [],
+  };
+}
+
 describe("AudioProcessingDetails", () => {
   it("renders the embedded processing model and server-grouped outputs", () => {
     const wrapper = mountDetails(makeFullChain());
@@ -929,7 +941,8 @@ describe("AudioProcessingDetails", () => {
     expect(destination.findAll("li").at(-1)?.text()).toBe("Room 20");
   });
 
-  it("shows the program bus as a feed before the outputs, only for a known queue", async () => {
+  it("shows the program bus as a feed before the outputs while the switch is on", async () => {
+    apiMock.sendCommand.mockResolvedValue(programBusOn());
     const withoutQueue = mountDetails(makeFullChain());
     expect(
       withoutQueue
@@ -954,7 +967,29 @@ describe("AudioProcessingDetails", () => {
     expect(apiMock.sendCommand).toHaveBeenCalledWith("streams/program_bus", {
       queue_id: "queue-1",
     });
-    expect(wrapper.text()).toContain("Turns on in the Streams settings");
+    expect(wrapper.text()).toContain("Session active");
+    wrapper.unmount();
+  });
+
+  it("draws the chain without a bus section while the switch is off", async () => {
+    const wrapper = mountDetails(
+      makeFullChain(),
+      makeStreamDetails(),
+      undefined,
+      undefined,
+      "queue-1",
+    );
+    const sections = () =>
+      wrapper
+        .findAll("[data-section]")
+        .map((section) => section.attributes("data-section"));
+
+    // the reading is still asked for, since only it can say whether the bus is on;
+    // until it answers, and whenever it says off, the chain runs on unbroken
+    expect(sections()).toEqual(["input", "processing", "output"]);
+    await flushPromises();
+    expect(sections()).toEqual(["input", "processing", "output"]);
+    expect(wrapper.text()).not.toContain("Turns on in the Streams settings");
     wrapper.unmount();
   });
 
