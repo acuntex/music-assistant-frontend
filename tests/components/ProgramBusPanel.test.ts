@@ -72,7 +72,7 @@ async function mountOpenPanel(view: ProgramBusView = busView()) {
 function subtitleParts(wrapper: VueWrapper): string[] {
   return wrapper
     .findAll(".audio-processing-stage-subtitle-part")
-    .map((part) => part.text().replace(/^ · /, ""));
+    .map((part) => part.text().replace(/^[\u00a0 ]*·\s*/, ""));
 }
 
 function subtitleLines(wrapper: VueWrapper): string[] {
@@ -81,8 +81,13 @@ function subtitleLines(wrapper: VueWrapper): string[] {
     .map((line) => line.text());
 }
 
+// the parts hold a non-breaking space before their separator, so the browser can
+// not drop it at the start of the inline-block; the row reads with plain spaces
 function statusLine(wrapper: VueWrapper): string {
-  return wrapper.get(".audio-processing-stage-subtitle").text();
+  return wrapper
+    .get(".audio-processing-stage-subtitle")
+    .text()
+    .replaceAll("\u00a0", " ");
 }
 
 function infoText(wrapper: VueWrapper): string {
@@ -196,11 +201,42 @@ describe("ProgramBusPanel", () => {
   it("reads like its neighbours, in a status row of facts", async () => {
     const wrapper = await mountPanel();
 
-    expect(statusLine(wrapper)).toBe("Session active · 48 kHz · 32-bit · 2 ch");
+    // the channel count is read as a word, like the neighbours' format rows
+    expect(statusLine(wrapper)).toBe("48 kHz · 32-bit · Stereo");
     // nothing to count, so no second row and no sentence in the closed node
     expect(wrapper.findAll(".audio-processing-stage-subtitle")).toHaveLength(1);
     expect(statusLine(wrapper)).not.toMatch(/\. /);
+    // the state a live session is in costs the row nothing; the tooltip has it
+    expect(statusLine(wrapper)).not.toContain("Session active");
+    expect(infoText(wrapper)).toContain("Session active");
     expect(infoText(wrapper)).toContain("Nothing scheduled");
+  });
+
+  it.each([
+    [1, "Mono"],
+    [2, "Stereo"],
+    [6, "6 channels"],
+  ])("names %i channels as %s", async (channels, label) => {
+    const wrapper = await mountPanel(
+      busView({ format: { sample_rate: 44100, bit_depth: 24, channels } }),
+    );
+
+    expect(statusLine(wrapper)).toBe(`44.1 kHz · 24-bit · ${label}`);
+  });
+
+  it("keeps its facts on one row whatever the language and width", async () => {
+    const wrapper = await mountPanel();
+
+    // one text row with atomic parts, so nothing wraps onto a line of its own
+    const parts = subtitleParts(wrapper);
+    expect(parts).toEqual(["48 kHz", "32-bit", "Stereo"]);
+    expect(
+      wrapper
+        .findAll(".audio-processing-stage-subtitle-part")
+        .every((part) =>
+          part.classes("audio-processing-stage-subtitle-part--atomic"),
+        ),
+    ).toBe(true);
   });
 
   it("counts what it holds instead of explaining itself in the node", async () => {
@@ -230,7 +266,7 @@ describe("ProgramBusPanel", () => {
     const wrapper = await mountPanel();
 
     expect(infoLines(wrapper)).toContain(
-      "Programs have to arrive as 48 kHz · 32-bit · 2 ch to be mixed",
+      "Programs have to arrive as 48 kHz · 32-bit · Stereo to be mixed",
     );
     // a bus that holds nothing adds no second row at all
     expect(
@@ -261,12 +297,10 @@ describe("ProgramBusPanel", () => {
     expect(infoLines(wrapper)).toContain("No flow session is mixing programs");
   });
 
-  it("says placement is paused in the status row", async () => {
+  it("says placement is paused in the tooltip, not in the row", async () => {
     const wrapper = await mountPanel(busView({ no_audible_position: true }));
 
-    expect(statusLine(wrapper)).toBe(
-      "Placement paused · 48 kHz · 32-bit · 2 ch",
-    );
+    expect(statusLine(wrapper)).toBe("48 kHz · 32-bit · Stereo");
     expect(infoLines(wrapper)).toContain("Placement paused — position unknown");
   });
 

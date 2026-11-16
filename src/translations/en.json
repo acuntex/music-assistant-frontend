@@ -3315,7 +3315,6 @@
         "idle": "Idle",
         "empty": "Nothing scheduled",
         "session_active": "Session active",
-        "placement_paused": "Placement paused",
         "format_detail": "Programs have to arrive as {format} to be mixed",
         "flow_claim": "Mixes into this player's stream",
         "boundary_claim": "Crosses track boundaries",

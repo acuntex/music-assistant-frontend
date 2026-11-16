@@ -55,7 +55,7 @@
                 stage.atomicSubtitleParts,
             }"
           >
-            {{ index === 0 ? part : ` · ${part}` }}
+            {{ index === 0 ? part : `${PART_SEPARATOR}${part}` }}
           </span>
         </template>
       </div>
@@ -146,6 +146,12 @@ const emit = defineEmits<{
   // the stage opened the page it links to
   (e: "navigate"): void;
 }>();
+
+// A collapsible space opening an inline-block part is dropped by the browser, so
+// the separator carries a non-breaking one: the row keeps its spaces while the
+// parts still break onto the next line at their boundaries.
+const PART_SEPARATOR = "\u00a0· ";
+
 const detailsId = useId();
 const detailsFocusTarget = ref<HTMLElement>();
 

@@ -51,8 +51,8 @@ import {
   VolumeNormalizationMode,
 } from "@/plugins/api/interfaces";
 
-type TranslationValue = string | number;
-type Translate = (key: string, values?: TranslationValue[]) => string;
+export type TranslationValue = string | number;
+export type Translate = (key: string, values?: TranslationValue[]) => string;
 
 /**
  * A page a stage links to, with a label naming it.
@@ -1117,7 +1117,10 @@ function audioFormatCodec(format: AudioFormat): string {
     : format.content_type;
 }
 
-function audioChannelCountLabel(
+/**
+ * The word a channel count is read as: "Mono", "Stereo" or "{n} channels".
+ */
+export function audioChannelCountLabel(
   channels: number,
   translate: Translate,
 ): string {

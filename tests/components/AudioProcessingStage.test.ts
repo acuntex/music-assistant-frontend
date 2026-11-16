@@ -70,7 +70,7 @@ describe("AudioProcessingStage", () => {
       title: "Program bus",
       subtitleParts: ["Session active"],
       subtitleLines: [
-        "48 kHz · 32-bit · 2 ch",
+        "48 kHz · 32-bit · Stereo",
         "Applies to the flow sessions of this player only",
       ],
     });
@@ -83,7 +83,7 @@ describe("AudioProcessingStage", () => {
         .findAll(".audio-processing-stage-subtitle-line")
         .map((line) => line.text()),
     ).toEqual([
-      "48 kHz · 32-bit · 2 ch",
+      "48 kHz · 32-bit · Stereo",
       "Applies to the flow sessions of this player only",
     ]);
   });

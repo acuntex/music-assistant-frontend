@@ -110,7 +110,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Radio } from "@lucide/vue";
 import AudioProcessingStage from "@/components/AudioProcessingStage.vue";
-import type { AudioProcessingDisplayStage } from "@/composables/useAudioProcessingDetails";
+import {
+  audioChannelCountLabel,
+  type AudioProcessingDisplayStage,
+  type Translate,
+} from "@/composables/useAudioProcessingDetails";
 import { formatDuration } from "@/helpers/utils";
 import api from "@/plugins/api";
 import type {
@@ -176,16 +180,11 @@ const placementPaused = computed(
   () => view.value?.no_audible_position === true,
 );
 
-// the first subtitle row: what the session does right now, with the format the bus
-// mixes in, kept as short as the neighbours' rows
+// the first subtitle row: the facts the bus mixes in, as short as the neighbours'
+// rows, so it stays on one line; a bus without a session says why instead
 const statusParts = computed(() => {
   if (!sessionLive.value) return [$t("program_bus.idle")];
-  return [
-    placementPaused.value
-      ? $t("program_bus.placement_paused")
-      : $t("program_bus.session_active"),
-    ...formatParts(view.value?.format ?? null),
-  ];
+  return formatParts(view.value?.format ?? null);
 });
 
 // the second row: what the bus holds and played, counted instead of listed; a bus
@@ -206,9 +205,11 @@ const stageDetails = computed(() => {
   if (!hasPrograms.value) details.push($t("program_bus.empty"));
   if (!sessionLive.value) {
     details.push($t("program_bus.no_session"));
-  } else if (placementPaused.value) {
-    details.push($t("program_bus.no_audible_position"));
   } else {
+    details.push($t("program_bus.session_active"));
+    if (placementPaused.value) {
+      details.push($t("program_bus.no_audible_position"));
+    }
     const format = view.value?.format;
     if (format) {
       details.push(
@@ -227,6 +228,7 @@ const stage = computed<AudioProcessingDisplayStage>(() => ({
   icon: Radio,
   title: $t("program_bus.title"),
   subtitleParts: statusParts.value,
+  atomicSubtitleParts: true,
   subtitleLines: summaryLines.value,
   details: stageDetails.value,
   link: hasPrograms.value
@@ -242,13 +244,30 @@ const stage = computed<AudioProcessingDisplayStage>(() => ({
     : undefined,
 }));
 
+// the facts a program has to come in with, worded the way the neighbouring stages
+// word their format rows
 function formatParts(format: ProgramBusFormat | null): string[] {
   if (!format) return [];
-  return [
-    `${Math.round(format.sample_rate / 100) / 10} kHz`,
-    `${format.bit_depth}-bit`,
-    `${format.channels} ch`,
-  ];
+  if (!format.sample_rate && !format.bit_depth && !format.channels) return [];
+  const parts: string[] = [];
+  if (format.sample_rate > 0) {
+    parts.push(`${formatNumber(format.sample_rate / 1000, 1)} kHz`);
+  }
+  if (format.bit_depth > 0) parts.push(`${format.bit_depth}-bit`);
+  if (format.channels > 0) {
+    parts.push(audioChannelCountLabel(format.channels, translate));
+  }
+  return parts;
+}
+
+// the shared format helpers speak vue-i18n's translate, so bridge to the global one
+const translate: Translate = (key, values) =>
+  values ? $t(key, values) : $t(key);
+
+function formatNumber(value: number, maximumFractionDigits: number): string {
+  return new Intl.NumberFormat(i18n.global.locale.value.replaceAll("_", "-"), {
+    maximumFractionDigits,
+  }).format(value);
 }
 
 function claimParts(): string[] {
