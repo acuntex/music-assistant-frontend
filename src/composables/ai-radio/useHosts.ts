@@ -143,29 +143,35 @@ async function setQueueDj(
   return queueDjStatus.value;
 }
 
-/** A queue's DJ mixing levels, in dB of attenuation. */
-export interface AIRadioQueueDjLevels {
-  /** How far the voice is pulled back; 0 leaves it unchanged. */
-  voiceLevelDb: number | null;
-  /** How far the music drops under the voice; null is "standard", 0 is "no ducking". */
-  duckDb: number | null;
+/**
+ * Sets how far a queue's DJ voice is pulled back (0 leaves it unchanged) and
+ * takes the server's answer as the new state, so a clamped value is what the
+ * control shows next. Ducking is untouched: the server keeps its own depth.
+ */
+async function setQueueDjVoiceLevel(
+  queueId: string,
+  voiceLevelDb: number,
+): Promise<AIRadioQueueDJStatus> {
+  const result = await api.sendCommand<AIRadioQueueDJStatus>(
+    "ai_radio/queue_dj/set_voice_level",
+    { queue_id: queueId, voice_level_db: voiceLevelDb },
+  );
+  queueDjStatus.value = result || {};
+  return queueDjStatus.value;
 }
 
 /**
- * Stores a queue's DJ mixing levels and takes the server's answer as the new
- * state, so clamped or defaulted values are what the controls show next.
+ * Sets how far a queue's DJ music drops under the voice, where null means the
+ * server default depth and 0 means no ducking at all, and takes the server's
+ * answer as the new state. The voice level is untouched.
  */
-async function setQueueDjLevels(
+async function setQueueDjDuck(
   queueId: string,
-  levels: AIRadioQueueDjLevels,
+  duckDb: number | null,
 ): Promise<AIRadioQueueDJStatus> {
   const result = await api.sendCommand<AIRadioQueueDJStatus>(
-    "ai_radio/queue_dj/set_levels",
-    {
-      queue_id: queueId,
-      voice_level_db: levels.voiceLevelDb,
-      duck_db: levels.duckDb,
-    },
+    "ai_radio/queue_dj/set_duck",
+    { queue_id: queueId, duck_db: duckDb },
   );
   queueDjStatus.value = result || {};
   return queueDjStatus.value;
@@ -205,7 +211,8 @@ export function useHosts() {
     loadTtsEngines,
     loadPresets,
     setQueueDj,
-    setQueueDjLevels,
+    setQueueDjVoiceLevel,
+    setQueueDjDuck,
   };
 }
 

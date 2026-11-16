@@ -1,7 +1,8 @@
 <!--
   Voice and ducking levels of a queue's AI DJ, as a popout of the queue menu.
-  Both controls write through ai_radio/queue_dj/set_levels and take the map the
-  server answers with as the new state.
+  Each control writes its own command — ai_radio/queue_dj/set_voice_level or
+  ai_radio/queue_dj/set_duck — so one never overwrites the other's stored value,
+  and takes the map the server answers with as the new state.
 -->
 <template>
   <div class="flex flex-col gap-3 p-2" @pointerdown.stop @click.stop>
@@ -130,7 +131,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
-const { queueDjStatus, setQueueDjLevels } = useHosts();
+const { queueDjStatus, setQueueDjVoiceLevel, setQueueDjDuck } = useHosts();
 
 const entry = computed(() => queueDjStatus.value[props.queueId]);
 const voiceLevel = computed(() =>
@@ -172,7 +173,7 @@ function onVoiceInput(value: number[] | undefined) {
 function onVoiceCommit(value: number[] | undefined) {
   if (!value) return;
   voiceDraft.value = clampVoiceLevelDb(value[0]);
-  void commit(voiceDraft.value, duckLevel.value);
+  void commitVoiceLevel(voiceDraft.value);
 }
 
 function onDuckInput(value: number[] | undefined) {
@@ -183,25 +184,30 @@ function onDuckInput(value: number[] | undefined) {
 function onDuckCommit(value: number[] | undefined) {
   if (!value || duckStandard.value) return;
   duckDraft.value = clampDuckLevelDb(value[0]);
-  void commit(voiceLevel.value, duckDraft.value);
+  void commitDuck(duckDraft.value);
 }
 
 // "Standard" is a real choice of its own: it clears the depth to null rather
 // than to 0, which would mean no ducking at all.
 function onDuckStandardChange(standard: boolean | "indeterminate") {
-  void commit(
-    voiceLevel.value,
+  void commitDuck(
     standard === true ? null : (duckDraft.value ?? DUCK_LEVEL_DB_MAX),
   );
 }
 
-/** Writes both levels at once and reports a failed write. */
-async function commit(
-  voiceLevelDb: number | null,
-  duckDb: number | null,
-): Promise<void> {
+/** Writes the voice level on its own and reports a failed write. */
+async function commitVoiceLevel(voiceLevelDb: number): Promise<void> {
   try {
-    await setQueueDjLevels(props.queueId, { voiceLevelDb, duckDb });
+    await setQueueDjVoiceLevel(props.queueId, voiceLevelDb);
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
+}
+
+/** Writes the ducking depth on its own, null being "use the server default". */
+async function commitDuck(duckDb: number | null): Promise<void> {
+  try {
+    await setQueueDjDuck(props.queueId, duckDb);
   } catch (error) {
     toast.error(errorMessage(error));
   }

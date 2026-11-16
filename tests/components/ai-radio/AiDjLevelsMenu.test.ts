@@ -99,14 +99,20 @@ async function setSlider(
   await flushPromises();
 }
 
-function setLevelsCalls() {
-  return sendCommand.mock.calls.filter(
-    ([command]) => command === "ai_radio/queue_dj/set_levels",
-  );
+const VOICE_COMMAND = "ai_radio/queue_dj/set_voice_level";
+const DUCK_COMMAND = "ai_radio/queue_dj/set_duck";
+
+/** The commands the menu actually sent, in order, without the level payloads. */
+function sentCommands(): string[] {
+  return sendCommand.mock.calls.map(([command]) => command);
 }
 
-function lastSetLevelsArgs() {
-  const calls = setLevelsCalls();
+function callsFor(command: string) {
+  return sendCommand.mock.calls.filter(([sent]) => sent === command);
+}
+
+function lastArgsFor(command: string) {
+  const calls = callsFor(command);
   return calls[calls.length - 1]?.[1];
 }
 
@@ -166,7 +172,7 @@ describe("AiDjLevelsMenu stored values", () => {
 describe("AiDjLevelsMenu commits", () => {
   it("sends a changed voice level and takes the answer into the state", async () => {
     sendCommand.mockImplementation(async (command) =>
-      command === "ai_radio/queue_dj/set_levels"
+      command === VOICE_COMMAND
         ? { [QUEUE_ID]: makeEntry({ voice_level_db: -3.5 }) }
         : [],
     );
@@ -174,12 +180,75 @@ describe("AiDjLevelsMenu commits", () => {
 
     await setSlider(wrapper, "voice", -3.5);
 
-    expect(lastSetLevelsArgs()).toEqual({
+    expect(lastArgsFor(VOICE_COMMAND)).toEqual({
       queue_id: QUEUE_ID,
       voice_level_db: -3.5,
-      duck_db: null,
     });
     expect(voiceValue(wrapper)).toBe("-3.5 dB");
+  });
+
+  it("leaves ducking alone when only the voice level changes", async () => {
+    seedQueue(makeEntry({ voice_level_db: 0, duck_db: -4 }));
+    const wrapper = await mountMenu();
+
+    await setSlider(wrapper, "voice", -7.5);
+
+    expect(callsFor(DUCK_COMMAND)).toHaveLength(0);
+    expect(sentCommands()).toEqual([VOICE_COMMAND]);
+  });
+
+  it("leaves the voice level alone when only ducking changes", async () => {
+    seedQueue(makeEntry({ voice_level_db: -2, duck_db: -4 }));
+    const wrapper = await mountMenu();
+
+    await setSlider(wrapper, "duck", -7);
+
+    expect(lastArgsFor(DUCK_COMMAND)).toEqual({
+      queue_id: QUEUE_ID,
+      duck_db: -7,
+    });
+    expect(callsFor(VOICE_COMMAND)).toHaveLength(0);
+    expect(sentCommands()).toEqual([DUCK_COMMAND]);
+  });
+
+  it("sends both commands in the order the two controls were used", async () => {
+    seedQueue(makeEntry({ voice_level_db: 0, duck_db: -4 }));
+    // Mirror the server: each setter answers with the whole map, keeping the
+    // level the other control owns.
+    sendCommand.mockImplementation(async (command, args) => {
+      const sent = (args ?? {}) as Record<string, number>;
+      if (command === VOICE_COMMAND) {
+        return {
+          [QUEUE_ID]: makeEntry({
+            voice_level_db: sent.voice_level_db,
+            duck_db: -4,
+          }),
+        };
+      }
+      if (command === DUCK_COMMAND) {
+        return {
+          [QUEUE_ID]: makeEntry({
+            voice_level_db: sent.voice_level_db ?? 0,
+            duck_db: sent.duck_db,
+          }),
+        };
+      }
+      return [];
+    });
+    const wrapper = await mountMenu();
+
+    await setSlider(wrapper, "voice", -3);
+    await setSlider(wrapper, "duck", -6);
+
+    expect(sentCommands()).toEqual([VOICE_COMMAND, DUCK_COMMAND]);
+    expect(lastArgsFor(VOICE_COMMAND)).toEqual({
+      queue_id: QUEUE_ID,
+      voice_level_db: -3,
+    });
+    expect(lastArgsFor(DUCK_COMMAND)).toEqual({
+      queue_id: QUEUE_ID,
+      duck_db: -6,
+    });
   });
 
   it("clamps a voice level outside 0 to -9 dB", async () => {
@@ -187,7 +256,7 @@ describe("AiDjLevelsMenu commits", () => {
 
     await setSlider(wrapper, "voice", -20);
 
-    expect(lastSetLevelsArgs()).toMatchObject({ voice_level_db: -9 });
+    expect(lastArgsFor(VOICE_COMMAND)).toMatchObject({ voice_level_db: -9 });
   });
 
   it("clamps a ducking depth outside 0 to -12 dB", async () => {
@@ -196,20 +265,7 @@ describe("AiDjLevelsMenu commits", () => {
 
     await setSlider(wrapper, "duck", -30);
 
-    expect(lastSetLevelsArgs()).toMatchObject({ duck_db: -12 });
-  });
-
-  it("keeps the voice level when only ducking changes", async () => {
-    seedQueue(makeEntry({ voice_level_db: -2, duck_db: -4 }));
-    const wrapper = await mountMenu();
-
-    await setSlider(wrapper, "duck", -7);
-
-    expect(lastSetLevelsArgs()).toEqual({
-      queue_id: QUEUE_ID,
-      voice_level_db: -2,
-      duck_db: -7,
-    });
+    expect(lastArgsFor(DUCK_COMMAND)).toMatchObject({ duck_db: -12 });
   });
 
   it("sends null for Standard ducking", async () => {
@@ -219,9 +275,8 @@ describe("AiDjLevelsMenu commits", () => {
     await wrapper.get("[data-testid='ai-dj-duck-standard']").trigger("click");
     await flushPromises();
 
-    expect(lastSetLevelsArgs()).toEqual({
+    expect(lastArgsFor(DUCK_COMMAND)).toEqual({
       queue_id: QUEUE_ID,
-      voice_level_db: -2,
       duck_db: null,
     });
   });
@@ -229,7 +284,7 @@ describe("AiDjLevelsMenu commits", () => {
   it("sends 0, not null, when Standard is turned off", async () => {
     seedQueue(makeEntry({ voice_level_db: -2, duck_db: null }));
     sendCommand.mockImplementation(async (command) =>
-      command === "ai_radio/queue_dj/set_levels"
+      command === DUCK_COMMAND
         ? { [QUEUE_ID]: makeEntry({ voice_level_db: -2, duck_db: 0 }) }
         : [],
     );
@@ -238,9 +293,8 @@ describe("AiDjLevelsMenu commits", () => {
     await wrapper.get("[data-testid='ai-dj-duck-standard']").trigger("click");
     await flushPromises();
 
-    expect(lastSetLevelsArgs()).toEqual({
+    expect(lastArgsFor(DUCK_COMMAND)).toEqual({
       queue_id: QUEUE_ID,
-      voice_level_db: -2,
       duck_db: 0,
     });
     expect(duckValue(wrapper)).toBe("0 dB");
@@ -249,7 +303,7 @@ describe("AiDjLevelsMenu commits", () => {
   it("reports a failed write instead of dropping it", async () => {
     const { toast } = await import("vue-sonner");
     sendCommand.mockImplementation(async (command) => {
-      if (command === "ai_radio/queue_dj/set_levels") {
+      if (command === VOICE_COMMAND) {
         throw new Error("Connection lost");
       }
       return [];
