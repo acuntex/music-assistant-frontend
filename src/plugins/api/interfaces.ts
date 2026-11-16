@@ -2510,8 +2510,8 @@ export interface AIRadioHost {
   section_ids: string[];
   section_order: AIRadioSectionOrderRule[];
   merge_section_id: string;
-  // seconds of a spoken contribution that start before the crossfade begins,
-  // the rest plays over the incoming track (0 means the voice starts with the fade)
+  // seconds of a spoken contribution that start before the track ends,
+  // the rest plays over the next track (0 means it starts exactly when the next track begins)
   term_head_seconds: number;
   // longest a single spoken contribution may run in seconds; longer material is cut
   max_contribution_seconds: number;

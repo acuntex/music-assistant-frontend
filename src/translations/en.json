@@ -2205,7 +2205,7 @@
                 "shuffle_playlist_tracks": "Play the source playlist in random order. Turn this off to follow the playlist's own order.",
                 "allow_post": "The end of this segment plays over the start of the next song, with the music turned down under the voice, ending just before the singing starts. Only happens when Music Assistant knows where the singing starts and the intro is long enough. When several segments are spoken as one break, all of them need this on.",
                 "allow_pre": "The start of this segment plays over the end of the previous song, with the music turned down under the voice. Needs the experimental program bus (Settings → Core → Streams) and a player that streams in flow mode; without them the segment plays as its own break at the boundary. When several segments are spoken as one break, all of them need this on.",
-                "term_head": "How many seconds of the spoken contribution start before the crossfade begins; the rest plays over the incoming track. 0 means the voice starts exactly with the fade.",
+                "term_head": "How many seconds of the spoken contribution start before the track ends; the rest plays over the next track. 0 means it starts exactly when the next track begins.",
                 "max_contribution": "Longest a single spoken contribution may run; longer material is cut.",
                 "play_intro": "Play this host's start-of-program segment when a show or the queue DJ starts.",
                 "play_outro": "Play this host's closing segment when the program ends."

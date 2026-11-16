@@ -196,7 +196,7 @@ export const GENERIC_HOST_SEGMENTS: ShowSegment[] =
 export const MERGE_SECTION_PROMPT =
   "Merge the drafts below into one coherent radio break. Preserve factual content, remove duplication, and make the final segment sound like one host speaking naturally.\n<section_drafts>";
 
-/** Server default for how much of a spoken contribution starts before the crossfade. */
+/** Server default for how much of a spoken contribution starts before the track ends. */
 export const DEFAULT_TERM_HEAD_SECONDS = 2;
 /** Server-side bounds for term_head_seconds; the editor control mirrors them. */
 export const TERM_HEAD_SECONDS_MIN = 0;
@@ -457,7 +457,7 @@ export interface HostDraft {
   language: string;
   // options: free-form key/value pairs passed straight through to the TTS engine
   options: Record<string, unknown>;
-  // termHeadSeconds: how much of the spoken contribution starts before the crossfade
+  // termHeadSeconds: how much of the spoken contribution starts before the track ends
   termHeadSeconds: number;
   // maxContributionSeconds: longest a single spoken contribution may run
   maxContributionSeconds: number;
