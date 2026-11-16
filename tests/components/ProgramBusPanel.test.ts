@@ -76,7 +76,7 @@ describe("ProgramBusPanel", () => {
     expect(wrapper.text()).toContain("Off");
     const link = wrapper.get(".audio-processing-stage-title");
     expect(link.element.tagName).toBe("BUTTON");
-    expect(link.attributes("title")).toBe("Open stream settings");
+    expect(link.attributes("title")).toBe("Open Streams settings");
     await link.trigger("click");
     expect(routerMock.push).toHaveBeenCalledWith("/settings/editcore/streams");
   });

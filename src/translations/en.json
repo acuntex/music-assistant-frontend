@@ -2204,7 +2204,7 @@
                 "instructions": "Describes the host's personality and how segments should be written. This is sent to the AI with every segment.",
                 "shuffle_playlist_tracks": "Play the source playlist in random order. Turn this off to follow the playlist's own order.",
                 "allow_post": "The end of this segment plays over the start of the next song, with the music turned down under the voice, ending just before the singing starts. Only happens when Music Assistant knows where the singing starts and the intro is long enough. When several segments are spoken as one break, all of them need this on.",
-                "allow_pre": "The start of this segment plays over the end of the previous song, with the music turned down under the voice. Needs the experimental program bus (Settings → Core → Streams) and a player that streams in flow mode; without them the segment plays as its own break at the boundary. When several segments are spoken as one break, all of them need this on.",
+                "allow_pre": "The start of this segment plays over the end of the previous song, with the music turned down under the voice. Needs the experimental program bus in the Streams core configuration and a player that streams in flow mode; without them the segment plays as its own break at the boundary. When several segments are spoken as one break, all of them need this on.",
                 "term_head": "How many seconds of the spoken contribution start before the track ends; the rest plays over the next track. 0 means it starts exactly when the next track begins.",
                 "max_contribution": "Longest a single spoken contribution may run; longer material is cut.",
                 "play_intro": "Play this host's start-of-program segment when a show or the queue DJ starts.",
@@ -2225,7 +2225,7 @@
                 "ducking_off": "No ducking",
                 "ducking_standard_use": "Use the server default",
                 "ducking_standard_help": "Uses the server's default ducking depth: Standard is not the same as 0 dB, which turns ducking off.",
-                "bus_off_link": "Open stream settings"
+                "bus_off_link": "Open Streams settings"
             },
             "plays": {
                 "start": "Once at start",
@@ -3321,7 +3321,7 @@
         "unavailable": "Program bus status is unavailable",
         "last_header": "Recently finished",
         "last_more": "+{count} earlier",
-        "open_settings": "Open stream settings",
+        "open_settings": "Open Streams settings",
         "flow_only_note": "Applies to the flow sessions of this player only",
         "state_scheduled": "scheduled",
         "state_orphaned": "will play when the queue moves on",
