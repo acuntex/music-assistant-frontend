@@ -2222,6 +2222,7 @@
                 "ducking": "Ducking",
                 "ducking_help": "How far the music drops under the voice. 0 dB turns ducking off, so the music keeps its level.",
                 "ducking_standard": "Standard",
+                "ducking_off": "No ducking",
                 "ducking_standard_use": "Use the server default",
                 "ducking_standard_help": "Uses the server's default ducking depth: Standard is not the same as 0 dB, which turns ducking off.",
                 "bus_off_link": "Open stream settings"

@@ -8,9 +8,9 @@
   <div class="flex flex-col gap-3 p-2" @pointerdown.stop @click.stop>
     <div class="flex flex-col gap-1.5">
       <div class="flex items-center gap-3">
-        <span class="flex-1 text-sm">{{
+        <Label class="flex-1 text-sm">{{
           $t("providers.ai_radio.queue_dj.voice_level")
-        }}</span>
+        }}</Label>
         <span
           data-testid="ai-dj-voice-value"
           class="min-w-[5ch] text-right text-sm tabular-nums"
@@ -25,6 +25,7 @@
           :max="VOICE_LEVEL_DB_MAX"
           :step="LEVEL_DB_STEP"
           :thumb-label="$t('providers.ai_radio.queue_dj.voice_level')"
+          :thumb-value-text="levelDbText(voiceDraft)"
           @update:model-value="onVoiceInput"
           @value-commit="onVoiceCommit"
         />
@@ -38,9 +39,9 @@
 
     <div class="flex flex-col gap-1.5">
       <div class="flex items-center gap-3">
-        <span class="flex-1 text-sm">{{
+        <Label class="flex-1 text-sm">{{
           $t("providers.ai_radio.queue_dj.ducking")
-        }}</span>
+        }}</Label>
         <span
           data-testid="ai-dj-duck-value"
           class="min-w-[5ch] text-right text-sm tabular-nums"
@@ -67,6 +68,7 @@
           :step="LEVEL_DB_STEP"
           :disabled="duckStandard"
           :thumb-label="$t('providers.ai_radio.queue_dj.ducking')"
+          :thumb-value-text="duckValueText"
           @update:model-value="onDuckInput"
           @value-commit="onDuckCommit"
         />
@@ -167,6 +169,16 @@ const duckLabel = computed(() =>
     ? $t("providers.ai_radio.queue_dj.ducking_standard")
     : levelDbText(duckDraft.value),
 );
+
+// What the thumb reads out: a screen reader must hear the same thing the
+// readout says, not the position the disabled thumb happens to sit at.
+const duckValueText = computed(() => {
+  if (duckStandard.value)
+    return $t("providers.ai_radio.queue_dj.ducking_standard");
+  if (duckDraft.value === 0)
+    return $t("providers.ai_radio.queue_dj.ducking_off");
+  return levelDbText(duckDraft.value);
+});
 
 function onVoiceInput(value: number[] | undefined) {
   if (!value) return;

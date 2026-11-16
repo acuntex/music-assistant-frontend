@@ -169,6 +169,53 @@ describe("AiDjLevelsMenu stored values", () => {
   });
 });
 
+describe("AiDjLevelsMenu screen reader values", () => {
+  function thumbText(wrapper: VueWrapper, which: "voice" | "duck"): string {
+    return wrapper
+      .get(`[data-testid='ai-dj-${which}-slider'] [data-slot='slider-thumb']`)
+      .attributes("aria-valuetext") as string;
+  }
+
+  it("calls the default depth by its name instead of reading 0 dB", async () => {
+    seedQueue(makeEntry({ duck_db: null }));
+
+    const wrapper = await mountMenu();
+
+    // the thumb sits at the server's depth while it is disabled, so the raw
+    // number would contradict the readout next to it
+    expect(thumbText(wrapper, "duck")).toBe("Standard");
+  });
+
+  it("says ducking is off at 0 dB", async () => {
+    seedQueue(makeEntry({ duck_db: 0 }));
+
+    const wrapper = await mountMenu();
+
+    expect(thumbText(wrapper, "duck")).toBe("No ducking");
+  });
+
+  it("reads a custom depth in decibels", async () => {
+    seedQueue(makeEntry({ voice_level_db: -4.5, duck_db: -6 }));
+
+    const wrapper = await mountMenu();
+
+    expect(thumbText(wrapper, "duck")).toBe("-6 dB");
+    expect(thumbText(wrapper, "voice")).toBe("-4.5 dB");
+  });
+
+  it("names both sliders after the level they set", async () => {
+    const wrapper = await mountMenu();
+
+    const thumb = (which: "voice" | "duck") =>
+      wrapper
+        .get(`[data-testid='ai-dj-${which}-slider'] [data-slot='slider-thumb']`)
+        .attributes("aria-label");
+
+    expect(thumb("voice")).toBe("Voice level");
+    expect(thumb("duck")).toBe("Ducking");
+  });
+});
+
 describe("AiDjLevelsMenu commits", () => {
   it("sends a changed voice level and takes the answer into the state", async () => {
     sendCommand.mockImplementation(async (command) =>
