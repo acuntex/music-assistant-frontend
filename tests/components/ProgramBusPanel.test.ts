@@ -115,8 +115,8 @@ describe("ProgramBusPanel", () => {
     expect(text).toContain("48 kHz");
     expect(text).toContain("32-bit");
     expect(text).toContain("2 ch");
-    expect(text).toContain("Flow claim");
-    expect(text).toContain("Boundary claim");
+    expect(text).toContain("Mixes into this player's stream");
+    expect(text).toContain("Crosses track boundaries");
     expect(wrapper.find('[data-testid="program-bus-overlays"]').exists()).toBe(
       false,
     );
@@ -224,8 +224,8 @@ describe("ProgramBusPanel", () => {
     );
 
     const row = wrapper.get('[data-testid="program-bus-overlay"]');
-    expect(row.text()).toContain("re-anchoring");
-    expect(row.text()).toContain("in unknown");
+    expect(row.text()).toContain("will play when the queue moves on");
+    expect(row.text()).toContain("start unknown");
   });
 
   it("shows why a program was dropped", async () => {
@@ -266,15 +266,15 @@ describe("ProgramBusPanel", () => {
   it("says placement is paused when there is no audible position", async () => {
     const wrapper = await mountPanel(busView({ no_audible_position: true }));
 
-    expect(wrapper.text()).toContain("placement paused: position unknown");
+    expect(wrapper.text()).toContain("Placement paused — position unknown");
   });
 
   it("keeps the session state but no zero claims when nothing is claimed", async () => {
     const wrapper = await mountPanel();
 
     const text = wrapper.text();
-    expect(text).not.toContain("Flow claim");
-    expect(text).not.toContain("Boundary claim");
+    expect(text).not.toContain("Mixes into this player's stream");
+    expect(text).not.toContain("Crosses track boundaries");
   });
 
   it("shows an error state instead of breaking when the command fails", async () => {
@@ -393,8 +393,8 @@ describe("ProgramBusPanel", () => {
     );
 
     const row = wrapper.get('[data-testid="program-bus-overlay"]');
-    expect(row.text()).toContain("head 4.0 s");
-    expect(row.text()).toContain("late 1.5 s");
+    expect(row.text()).toContain("starts 4.0 s before the track ends");
+    expect(row.text()).toContain("placed 1.5 s late");
   });
 
   it("keeps a program without a head or lateness free of empty numbers", async () => {
@@ -414,7 +414,7 @@ describe("ProgramBusPanel", () => {
     );
 
     const row = wrapper.get('[data-testid="program-bus-overlay"]');
-    expect(row.text()).not.toContain("head");
+    expect(row.text()).not.toContain("before the track ends");
     expect(row.text()).not.toContain("late");
     // nothing to say about timing at all, so the detail line is not even there
     expect(row.find('[data-testid="program-bus-timing"]').exists()).toBe(false);
@@ -437,7 +437,7 @@ describe("ProgramBusPanel", () => {
     );
 
     const timing = wrapper.get('[data-testid="program-bus-timing"]');
-    expect(timing.text()).toBe("head 4.0 s");
+    expect(timing.text()).toBe("starts 4.0 s before the track ends");
   });
 
   it("leaves the head out of a program that carries none", async () => {
@@ -457,7 +457,7 @@ describe("ProgramBusPanel", () => {
     );
 
     const timing = wrapper.get('[data-testid="program-bus-timing"]');
-    expect(timing.text()).toBe("late 1.5 s");
+    expect(timing.text()).toBe("placed 1.5 s late");
   });
 
   it.each([
