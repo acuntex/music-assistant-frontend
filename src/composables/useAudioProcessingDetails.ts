@@ -58,10 +58,15 @@ type Translate = (key: string, values?: TranslationValue[]) => string;
  * A page a stage links to, with a label naming it.
  */
 export interface AudioProcessingStageLink {
-  to: RouteLocationRaw;
+  // a page the link opens; a link that only acts in place leaves it out
+  to?: RouteLocationRaw;
   label: string;
   // works out a more exact page when clicked, falling back to `to`
   resolve?: () => Promise<RouteLocationRaw>;
+  // the action of a link that stays on the page, such as opening a list the node holds
+  activate?: () => void;
+  // set when the link opens something in place, so its state can be announced
+  expanded?: boolean;
 }
 
 interface AudioProcessingDisplayStageBase {
@@ -586,7 +591,7 @@ function dspFilterLink(
       const position =
         config && dspFilterPosition(config.filters, filter, occurrence);
       return position === undefined
-        ? link.to
+        ? dspSettingsRoute(playerId)
         : dspSettingsRoute(playerId, position);
     },
   };

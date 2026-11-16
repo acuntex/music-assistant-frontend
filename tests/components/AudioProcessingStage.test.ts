@@ -293,6 +293,27 @@ describe("AudioProcessingStage settings link", () => {
 
     expect(routerMock.push).toHaveBeenCalledWith(exact);
   });
+
+  it("acts in place without leaving the page", async () => {
+    const activate = vi.fn();
+    const wrapper = mountStage({
+      key: "program-bus",
+      icon: TestIcon,
+      title: "Program bus",
+      link: { label: "Show details", activate, expanded: false },
+    });
+    const link = wrapper.get("button.audio-processing-stage-link");
+
+    // a link that opens something in place keeps the popover and the player
+    expect(link.attributes("aria-expanded")).toBe("false");
+    await link.trigger("click");
+
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(storeMock.showFullscreenPlayer).toBe(true);
+    expect(storeMock.showPlayersMenu).toBe(true);
+    expect(wrapper.emitted("navigate")).toBeUndefined();
+  });
 });
 
 describe("AudioProcessingStage subtitle link", () => {

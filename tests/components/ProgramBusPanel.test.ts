@@ -53,12 +53,13 @@ async function mountPanel(view: ProgramBusView | Error = busView()) {
   return wrapper;
 }
 
-function toggle(wrapper: VueWrapper) {
-  return wrapper.get('[data-testid="program-bus-details-toggle"]');
+// the node's own link opens the program list, so listing costs no row of its own
+function nodeLink(wrapper: VueWrapper) {
+  return wrapper.get("button.audio-processing-stage-title");
 }
 
 async function openDetails(wrapper: VueWrapper) {
-  await toggle(wrapper).trigger("click");
+  await nodeLink(wrapper).trigger("click");
 }
 
 // most of what the bus holds is only shown once the reader asks for it
@@ -68,10 +69,29 @@ async function mountOpenPanel(view: ProgramBusView = busView()) {
   return wrapper;
 }
 
+function subtitleParts(wrapper: VueWrapper): string[] {
+  return wrapper
+    .findAll(".audio-processing-stage-subtitle-part")
+    .map((part) => part.text().replace(/^ · /, ""));
+}
+
 function subtitleLines(wrapper: VueWrapper): string[] {
   return wrapper
     .findAll(".audio-processing-stage-subtitle-line")
     .map((line) => line.text());
+}
+
+function statusLine(wrapper: VueWrapper): string {
+  return wrapper.get(".audio-processing-stage-subtitle").text();
+}
+
+function infoText(wrapper: VueWrapper): string {
+  return wrapper.get(".audio-processing-stage .sr-only").text();
+}
+
+function infoLines(wrapper: VueWrapper): string[] {
+  const description = infoText(wrapper);
+  return description ? description.split(". ") : [];
 }
 
 beforeEach(() => {
@@ -173,34 +193,81 @@ describe("ProgramBusPanel", () => {
     expect(wrapper.text().match(/On/g)).toHaveLength(1);
   });
 
-  it("reports a live session, its format and the claims held for it", async () => {
-    const wrapper = await mountPanel(
-      busView({ claims: { flow: true, boundary: true } }),
-    );
+  it("reads like its neighbours, in a status row of facts", async () => {
+    const wrapper = await mountPanel();
 
-    const text = wrapper.text();
-    expect(text).toContain("Session active");
-    expect(text).toContain("48 kHz");
-    expect(text).toContain("32-bit");
-    expect(text).toContain("2 ch");
-    expect(text).toContain("Mixes into this player's stream");
-    expect(text).toContain("Crosses track boundaries");
-    expect(wrapper.find('[data-testid="program-bus-overlays"]').exists()).toBe(
-      false,
-    );
+    expect(statusLine(wrapper)).toBe("Session active · 48 kHz · 32-bit · 2 ch");
+    // nothing to count, so no second row and no sentence in the closed node
+    expect(wrapper.findAll(".audio-processing-stage-subtitle")).toHaveLength(1);
+    expect(statusLine(wrapper)).not.toMatch(/\. /);
+    expect(infoText(wrapper)).toContain("Nothing scheduled");
   });
 
-  it("tells the session state on the stage, not in a line of its own", async () => {
+  it("counts what it holds instead of explaining itself in the node", async () => {
     const wrapper = await mountPanel(
-      busView({ claims: { flow: true, boundary: true } }),
+      busView({
+        claims: { flow: true, boundary: true },
+        last: endedPrograms(2),
+      }),
     );
 
-    expect(subtitleLines(wrapper)).toEqual([
-      "48 kHz · 32-bit · 2 ch",
-      "Mixes into this player's stream · Crosses track boundaries",
-      "Nothing scheduled",
+    expect(subtitleLines(wrapper)).toEqual(["2 played"]);
+    // nothing explanatory costs a row: the claims and the scope are in the tooltip
+    const rows = [statusLine(wrapper), ...subtitleLines(wrapper)].join(" ");
+    expect(rows).not.toContain("Mixes into this player's stream");
+    expect(rows).not.toContain("Crosses track boundaries");
+    expect(rows).not.toContain(
       "Applies to the flow sessions of this player only",
-    ]);
+    );
+    expect(rows).not.toContain("before the track ends");
+    const info = infoText(wrapper);
+    expect(info).toContain("Mixes into this player's stream");
+    expect(info).toContain("Crosses track boundaries");
+    expect(info).toContain("Applies to the flow sessions of this player only");
+  });
+
+  it("explains the format behind the info button, not in a row", async () => {
+    const wrapper = await mountPanel();
+
+    expect(infoLines(wrapper)).toContain(
+      "Programs have to arrive as 48 kHz · 32-bit · 2 ch to be mixed",
+    );
+    // a bus that holds nothing adds no second row at all
+    expect(
+      wrapper.findAll(".audio-processing-stage-subtitle-line"),
+    ).toHaveLength(0);
+  });
+
+  it("takes the info button when the node has nothing to explain", async () => {
+    const wrapper = await mountPanel(
+      busView({ session_active: false, format: null }),
+    );
+
+    // the info button is there for the scope note alone, so it stays reachable
+    expect(wrapper.find(".audio-processing-stage-info").exists()).toBe(true);
+  });
+
+  it("says it is idle when no flow session mixes programs", async () => {
+    const wrapper = await mountPanel(
+      busView({
+        session_active: false,
+        format: null,
+        last: endedPrograms(2),
+      }),
+    );
+
+    expect(statusLine(wrapper)).toBe("Idle");
+    expect(subtitleLines(wrapper)).toEqual(["2 played"]);
+    expect(infoLines(wrapper)).toContain("No flow session is mixing programs");
+  });
+
+  it("says placement is paused in the status row", async () => {
+    const wrapper = await mountPanel(busView({ no_audible_position: true }));
+
+    expect(statusLine(wrapper)).toBe(
+      "Placement paused · 48 kHz · 32-bit · 2 ch",
+    );
+    expect(infoLines(wrapper)).toContain("Placement paused — position unknown");
   });
 
   it("stays out of the chain when its first reading fails", async () => {
@@ -221,22 +288,22 @@ describe("ProgramBusPanel", () => {
     await flushPromises();
 
     const stage = wrapper.get(".audio-processing-stage");
-    const warning = stage.get('[data-testid="program-bus-error"]');
-    expect(warning.text()).toBe("Program bus status is unavailable");
+    // the reading is missing, so the counted row says so instead of the counts
+    expect(subtitleLines(wrapper)).toEqual([
+      "Program bus status is unavailable",
+    ]);
+    expect(
+      stage
+        .get(
+          ".audio-processing-stage-copy .audio-processing-stage-subtitle-line",
+        )
+        .text(),
+    ).toBe("Program bus status is unavailable");
     // nothing but the stage sits between the header and the outputs, so the
     // chain's connector line is not interrupted
     expect(
       wrapper.get(".audio-processing-section").element.children,
     ).toHaveLength(1);
-  });
-
-  it("says a flow session is missing when the bus is on but nothing mixes", async () => {
-    const wrapper = await mountPanel(
-      busView({ session_active: false, format: null }),
-    );
-
-    expect(wrapper.text()).toContain("No flow session is mixing programs");
-    expect(wrapper.text()).not.toContain("Turns on in the Streams settings");
   });
 
   it("shows a planned program with its label, state and seconds to go", async () => {
@@ -392,19 +459,14 @@ describe("ProgramBusPanel", () => {
     expect(row.find('[data-testid="program-bus-reason"]').exists()).toBe(false);
   });
 
-  it("says placement is paused when there is no audible position", async () => {
-    const wrapper = await mountPanel(busView({ no_audible_position: true }));
-
-    expect(wrapper.text()).toContain("Placement paused — position unknown");
-  });
-
-  it("says nothing is scheduled while the bus holds no program at all", async () => {
+  it("says nothing is scheduled in the tooltip, not in a row", async () => {
     const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
 
-    expect(subtitleLines(wrapper)).toContain("Nothing scheduled");
+    expect(subtitleLines(wrapper)).toEqual([]);
+    expect(infoText(wrapper)).toContain("Nothing scheduled");
   });
 
-  it("leaves the empty line out as soon as a program is there", async () => {
+  it("adds the counted row as soon as a program is there", async () => {
     const wrapper = await mountPanel(
       busView({
         overlays: [
@@ -420,15 +482,7 @@ describe("ProgramBusPanel", () => {
       }),
     );
 
-    expect(subtitleLines(wrapper)).not.toContain("Nothing scheduled");
-  });
-
-  it("keeps the session state but no zero claims when nothing is claimed", async () => {
-    const wrapper = await mountPanel();
-
-    const text = wrapper.text();
-    expect(text).not.toContain("Mixes into this player's stream");
-    expect(text).not.toContain("Crosses track boundaries");
+    expect(subtitleLines(wrapper)).toEqual(["1 scheduled"]);
   });
 
   it("keeps a reading it already had when the command fails", async () => {
@@ -441,10 +495,12 @@ describe("ProgramBusPanel", () => {
 
     // the bus keeps mixing; only its reading is missing
     expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("On");
+    expect(subtitleLines(wrapper)).toEqual([
+      "Program bus status is unavailable",
+    ]);
     expect(wrapper.find('[data-testid="program-bus-overlay"]').exists()).toBe(
       false,
     );
-    expect(wrapper.text()).toContain("Program bus status is unavailable");
   });
 
   it("keeps what it had when a later poll fails", async () => {
@@ -527,14 +583,6 @@ describe("ProgramBusPanel", () => {
         .find('[data-testid="program-bus-last"]')
         .findAll("button, input, [draggable]"),
     ).toHaveLength(0);
-  });
-
-  it("says the bus is only for this player's flow sessions", async () => {
-    const wrapper = await mountPanel();
-
-    expect(wrapper.text()).toContain(
-      "Applies to the flow sessions of this player only",
-    );
   });
 
   it("shows the head a program was planned with and how late it landed", async () => {
@@ -692,14 +740,17 @@ describe("ProgramBusPanel", () => {
 
   it("keeps the program list closed until it is asked for", async () => {
     const wrapper = await mountPanel(busView({ last: endedPrograms(4) }));
+    const link = nodeLink(wrapper);
 
-    expect(toggle(wrapper).attributes("aria-expanded")).toBe("false");
-    expect(toggle(wrapper).text()).toBe("Show details");
+    expect(link.attributes("aria-expanded")).toBe("false");
+    expect(link.attributes("title")).toBe("Show details");
+    // the link is the node's own title, so it costs no row of its own
+    expect(link.text()).toBe("Program bus");
     expect(wrapper.findAll('[data-testid="program-bus-ended"]')).toHaveLength(
       0,
     );
     expect(wrapper.text()).not.toContain("Program 1");
-    // the count is the only thing the closed panel spends on them
+    // the count is the only thing the closed node spends on them
     expect(subtitleLines(wrapper)).toContain("4 played");
   });
 
@@ -708,8 +759,8 @@ describe("ProgramBusPanel", () => {
 
     await openDetails(wrapper);
 
-    expect(toggle(wrapper).attributes("aria-expanded")).toBe("true");
-    expect(toggle(wrapper).text()).toBe("Hide details");
+    expect(nodeLink(wrapper).attributes("aria-expanded")).toBe("true");
+    expect(nodeLink(wrapper).attributes("title")).toBe("Hide details");
     expect(wrapper.findAll('[data-testid="program-bus-ended"]')).toHaveLength(
       4,
     );
@@ -720,15 +771,15 @@ describe("ProgramBusPanel", () => {
     );
   });
 
-  it("points the open list at the row it controls", async () => {
-    const wrapper = await mountPanel(busView({ last: endedPrograms(1) }));
-    const controls = toggle(wrapper).attributes("aria-controls");
-    if (!controls) throw new Error("the toggle names no list");
+  it("offers no link to a list that would be empty", async () => {
+    const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
 
-    expect(wrapper.find(`#${CSS.escape(controls)}`).exists()).toBe(false);
-
-    await openDetails(wrapper);
-    expect(wrapper.find(`#${CSS.escape(controls)}`).exists()).toBe(true);
+    expect(wrapper.find("button.audio-processing-stage-title").exists()).toBe(
+      false,
+    );
+    expect(wrapper.get(".audio-processing-stage-title").element.tagName).toBe(
+      "SPAN",
+    );
   });
 
   it("spends the same height however many programs the bus played", async () => {
@@ -746,14 +797,41 @@ describe("ProgramBusPanel", () => {
   it("spends nothing on a bus that has nothing to show", async () => {
     const wrapper = await mountPanel(busView({ overlays: [], last: [] }));
 
-    expect(
-      wrapper.find('[data-testid="program-bus-details-toggle"]').exists(),
-    ).toBe(false);
+    expect(wrapper.find("button.audio-processing-stage-title").exists()).toBe(
+      false,
+    );
     expect(
       subtitleLines(wrapper).filter((line) =>
         /^\d+ (scheduled|played|skipped)/.test(line),
       ),
     ).toEqual([]);
+  });
+
+  it("hangs its list inside the copy column the connector runs past", async () => {
+    const wrapper = await mountPanel(busView({ last: endedPrograms(2) }));
+    await openDetails(wrapper);
+
+    const stage = wrapper.get(".audio-processing-stage");
+    const copy = stage.get(".audio-processing-stage-copy");
+    const details = wrapper.get('[data-testid="program-bus-details"]');
+
+    // the list is a child of the copy, not a second grid row: the connector is
+    // the first column of the only row and stretches over the copy's height
+    expect(copy.element.contains(details.element)).toBe(true);
+    expect(stage.element.querySelector(":scope > .program-bus-details")).toBe(
+      null,
+    );
+    const children = Array.from(stage.element.children).map(
+      (child) => child.className,
+    );
+    expect(children.slice(0, 3)).toEqual([
+      "audio-processing-stage-connector",
+      "audio-processing-stage-icon",
+      "audio-processing-stage-copy",
+    ]);
+    // the node's own rows are inside the same column as the list
+    expect(copy.findAll(".audio-processing-stage-subtitle")).toHaveLength(2);
+    expect(copy.findAll(".program-bus-row")).toHaveLength(2);
   });
 
   it("keeps the stage as the only child of its section", async () => {
@@ -777,20 +855,23 @@ describe("ProgramBusPanel", () => {
     const section = wrapper.get('[data-testid="program-bus"]');
     const body = section.get(".audio-processing-section");
     expect(body.element.children).toHaveLength(1);
-    expect(body.element.children[0].classList).toContain(
-      "audio-processing-stage",
-    );
+    const stage = body.element.children[0];
+    expect(stage.classList).toContain("audio-processing-stage");
     // every block of the panel hangs inside the node, where the connector runs
     // past it, instead of between the node and the outputs
     expect(section.findAll(".audio-processing-stage-connector")).toHaveLength(
       1,
     );
-    const copy = section.get(".audio-processing-stage-copy");
-    expect(
-      copy.findAll("p, ul, [data-testid^='program-bus-']"),
-    ).not.toHaveLength(0);
-    expect(section.findAll("p")).toHaveLength(copy.findAll("p").length);
-    expect(copy.findAll('[data-testid="program-bus-ended"]')).toHaveLength(2);
+    for (const block of section.findAll("[data-testid^='program-bus-']")) {
+      const testId = block.attributes("data-testid");
+      if (testId === "program-bus" || testId === "program-bus-status") continue;
+      expect(stage.contains(block.element)).toBe(true);
+      expect(
+        stage
+          .querySelector(`.audio-processing-stage-copy`)
+          ?.contains(block.element),
+      ).toBe(true);
+    }
   });
 
   it("leaves the old queue behind when the panel is pointed at another one", async () => {
@@ -826,9 +907,9 @@ describe("ProgramBusPanel", () => {
 
     await wrapper.setProps({ queueId: "queue-2" });
     expect(wrapper.text()).not.toContain("First queue");
-    expect(
-      wrapper.find('[data-testid="program-bus-details-toggle"]').exists(),
-    ).toBe(false);
+    expect(wrapper.find("button.audio-processing-stage-title").exists()).toBe(
+      false,
+    );
 
     await flushPromises();
     await openDetails(wrapper);

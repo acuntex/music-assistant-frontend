@@ -19,6 +19,7 @@
           class="audio-processing-stage-title audio-processing-stage-link"
           :title="stage.link.label"
           :aria-label="`${stage.title}, ${stage.link.label}`"
+          :aria-expanded="stage.link.expanded"
           @click="openLink(stage.link)"
         >
           {{ stage.title }}
@@ -39,6 +40,7 @@
           type="button"
           class="audio-processing-stage-link"
           :title="stage.subtitleLink.label"
+          :aria-expanded="stage.subtitleLink.expanded"
           @click="openLink(stage.subtitleLink)"
         >
           {{ stage.subtitleParts.join(" · ") }}
@@ -149,6 +151,13 @@ const detailsFocusTarget = ref<HTMLElement>();
 
 // the page would otherwise open behind the fullscreen player or players menu
 async function openLink(link: AudioProcessingStageLink): Promise<void> {
+  // a link that acts in place keeps the popover open, so it neither hides the
+  // player nor opens a page
+  if (link.activate) {
+    link.activate();
+    return;
+  }
+  if (!link.to) return;
   store.showFullscreenPlayer = false;
   store.showPlayersMenu = false;
   emit("navigate");

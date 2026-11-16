@@ -7,14 +7,10 @@
   over the tracks, so there is nothing to play, seek or drag.
 
   The whole reading hangs inside the one stage node of this section, so the chain's
-  connector line runs from the input down to the outputs without a break. The ended
-  programs are counted on one line and only listed when the reader opens them: the
-  popover must not grow with the bus's history.
-
-  The bus is an experimental switch, so this section exists only while it is on: a
-  reader without it sees the chain as if there were no bus, not the off state of a
-  feature they never turned on. The reading has to say so first, because until it
-  arrives the panel can not tell whether the bus is on.
+  connector line runs from the input down to the outputs without a break, and the
+  node reads like its neighbours: one status line with the facts, one counted line
+  for what the bus holds, the explanations behind the node's info button and the
+  programs themselves behind the node's own link.
 -->
 <template>
   <section
@@ -41,36 +37,10 @@
     <div class="audio-processing-section">
       <AudioProcessingStage :stage="stage" @navigate="emit('navigate')">
         <template #extra>
-          <p
-            v-if="failed"
-            class="program-bus-warning"
-            data-testid="program-bus-error"
-          >
-            {{ $t("program_bus.unavailable") }}
-          </p>
-
-          <button
-            v-if="hasPrograms"
-            type="button"
-            class="program-bus-details-toggle"
-            data-testid="program-bus-details-toggle"
-            :aria-expanded="detailsOpen"
-            :aria-controls="detailsId"
-            @click="detailsOpen = !detailsOpen"
-          >
-            {{
-              detailsOpen
-                ? $t("program_bus.details_hide")
-                : $t("program_bus.details_show")
-            }}
-            <ChevronUp v-if="detailsOpen" :size="12" aria-hidden="true" />
-            <ChevronDown v-else :size="12" aria-hidden="true" />
-          </button>
-
           <div
             v-if="detailsOpen && hasPrograms"
-            :id="detailsId"
             class="program-bus-details"
+            data-testid="program-bus-details"
           >
             <div
               v-if="overlays.length"
@@ -137,8 +107,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, useId, watch } from "vue";
-import { ChevronDown, ChevronUp, Radio } from "@lucide/vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { Radio } from "@lucide/vue";
 import AudioProcessingStage from "@/components/AudioProcessingStage.vue";
 import type { AudioProcessingDisplayStage } from "@/composables/useAudioProcessingDetails";
 import { formatDuration } from "@/helpers/utils";
@@ -167,10 +137,8 @@ const emit = defineEmits<{
 
 const view = ref<ProgramBusView>();
 const failed = ref(false);
-// the program list is asked for, so the panel keeps one line of height whatever
-// the bus has played
+// the program list is asked for, so the node keeps two rows whatever the bus played
 const detailsOpen = ref(false);
-const detailsId = useId();
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 // the queue whose reading is still out, so one poll never stacks on another
 let pendingQueue: string | undefined;
@@ -207,42 +175,71 @@ const hasPrograms = computed(
 const placementPaused = computed(
   () => view.value?.no_audible_position === true,
 );
-// a live session without anything in it would otherwise show only its subtitle;
-// without a session the missing-session line already says why nothing mixes
-const nothingScheduled = computed(
-  () => sessionLive.value && !hasPrograms.value,
-);
 
-const subtitleParts = computed(() => {
-  if (!sessionLive.value) return [$t("program_bus.no_session")];
-  return [$t("program_bus.session_active")];
+// the first subtitle row: what the session does right now, with the format the bus
+// mixes in, kept as short as the neighbours' rows
+const statusParts = computed(() => {
+  if (!sessionLive.value) return [$t("program_bus.idle")];
+  return [
+    placementPaused.value
+      ? $t("program_bus.placement_paused")
+      : $t("program_bus.session_active"),
+    ...formatParts(view.value?.format ?? null),
+  ];
 });
 
-// everything the reader needs to know about the bus, told in the node's own
-// subtitle rows: the format a program has to come in, the claims, the states and
-// one counted line instead of a list that grows with the history
-const subtitleLines = computed(() => {
-  const lines: string[] = [];
-  if (sessionLive.value) {
-    const format = formatParts(view.value?.format ?? null);
-    if (format.length) lines.push(format.join(" · "));
-    const claims = claimParts();
-    if (claims.length) lines.push(claims.join(" · "));
-  }
-  if (placementPaused.value) lines.push($t("program_bus.no_audible_position"));
-  if (nothingScheduled.value) lines.push($t("program_bus.empty"));
-  lines.push($t("program_bus.flow_only_note"));
+// the second row: what the bus holds and played, counted instead of listed; a bus
+// that holds nothing adds no row at all, the way its neighbours only state facts
+const summaryLines = computed(() => {
+  if (failed.value) return [$t("program_bus.unavailable")];
   const summary = summaryLabel();
-  if (summary) lines.push(summary);
-  return lines;
+  return summary ? [summary] : [];
 });
 
+// the row's explanations live behind the info button, the way the neighbouring
+// stages explain a headroom or a normalization
+const stageDetails = computed(() => {
+  const details: string[] = [];
+  const claims = claimParts();
+  if (claims.length) details.push(claims.join(" · "));
+  details.push($t("program_bus.flow_only_note"));
+  if (!hasPrograms.value) details.push($t("program_bus.empty"));
+  if (!sessionLive.value) {
+    details.push($t("program_bus.no_session"));
+  } else if (placementPaused.value) {
+    details.push($t("program_bus.no_audible_position"));
+  } else {
+    const format = view.value?.format;
+    if (format) {
+      details.push(
+        $t("program_bus.format_detail", {
+          format: formatParts(format).join(" · "),
+        }),
+      );
+    }
+  }
+  return details;
+});
+
+// the programs sit behind the node's own link, so listing them costs no row of its own
 const stage = computed<AudioProcessingDisplayStage>(() => ({
   key: "program-bus",
   icon: Radio,
   title: $t("program_bus.title"),
-  subtitleParts: subtitleParts.value,
-  subtitleLines: subtitleLines.value,
+  subtitleParts: statusParts.value,
+  subtitleLines: summaryLines.value,
+  details: stageDetails.value,
+  link: hasPrograms.value
+    ? {
+        label: detailsOpen.value
+          ? $t("program_bus.details_hide")
+          : $t("program_bus.details_show"),
+        activate: () => {
+          detailsOpen.value = !detailsOpen.value;
+        },
+        expanded: detailsOpen.value,
+      }
+    : undefined,
 }));
 
 function formatParts(format: ProgramBusFormat | null): string[] {
@@ -365,40 +362,6 @@ onUnmounted(() => {
 </script>
 
 <style>
-.program-bus .program-bus-warning {
-  margin: 3px 0 0;
-  color: var(--destructive);
-  font-size: 0.7rem;
-  line-height: 1.35;
-}
-
-.program-bus .program-bus-details-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 3px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: 0.68rem;
-  line-height: 1.35;
-  cursor: pointer;
-}
-
-.program-bus .program-bus-details-toggle:hover {
-  color: var(--foreground);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-.program-bus .program-bus-details-toggle:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-  border-radius: 2px;
-}
-
 .program-bus .program-bus-details {
   display: grid;
   gap: 3px;
