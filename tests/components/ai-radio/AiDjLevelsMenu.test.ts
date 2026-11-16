@@ -281,13 +281,20 @@ describe("AiDjLevelsMenu commits", () => {
     });
   });
 
-  it("sends 0, not null, when Standard is turned off", async () => {
+  it("starts at the server's own depth when Standard is turned off", async () => {
     seedQueue(makeEntry({ voice_level_db: -2, duck_db: null }));
-    sendCommand.mockImplementation(async (command) =>
-      command === DUCK_COMMAND
-        ? { [QUEUE_ID]: makeEntry({ voice_level_db: -2, duck_db: 0 }) }
-        : [],
-    );
+    // a queue without its own depth mixes at the server's global voice-over depth
+    // (gain 0.6, about -8 dB), which is what turning Standard off has to start at
+    sendCommand.mockImplementation(async (command, args) => {
+      if (command !== DUCK_COMMAND) return [];
+      const sent = (args ?? {}) as Record<string, number | null>;
+      return {
+        [QUEUE_ID]: makeEntry({
+          voice_level_db: -2,
+          duck_db: sent.duck_db as number | null,
+        }),
+      };
+    });
     const wrapper = await mountMenu();
 
     await wrapper.get("[data-testid='ai-dj-duck-standard']").trigger("click");
@@ -295,9 +302,35 @@ describe("AiDjLevelsMenu commits", () => {
 
     expect(lastArgsFor(DUCK_COMMAND)).toEqual({
       queue_id: QUEUE_ID,
-      duck_db: 0,
+      duck_db: -8,
     });
-    expect(duckValue(wrapper)).toBe("0 dB");
+    expect(duckValue(wrapper)).toBe("-8 dB");
+  });
+
+  it("keeps a custom depth the user already picked", async () => {
+    seedQueue(makeEntry({ voice_level_db: -2, duck_db: -5 }));
+    sendCommand.mockImplementation(async (command, args) => {
+      if (command !== DUCK_COMMAND) return [];
+      const sent = (args ?? {}) as Record<string, number | null>;
+      return {
+        [QUEUE_ID]: makeEntry({
+          voice_level_db: -2,
+          duck_db: sent.duck_db as number | null,
+        }),
+      };
+    });
+    const wrapper = await mountMenu();
+
+    // Standard on, then off again: the depth the user chose comes back
+    await wrapper.get("[data-testid='ai-dj-duck-standard']").trigger("click");
+    await flushPromises();
+    await wrapper.get("[data-testid='ai-dj-duck-standard']").trigger("click");
+    await flushPromises();
+
+    expect(lastArgsFor(DUCK_COMMAND)).toEqual({
+      queue_id: QUEUE_ID,
+      duck_db: -5,
+    });
   });
 
   it("reports a failed write instead of dropping it", async () => {

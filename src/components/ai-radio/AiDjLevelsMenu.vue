@@ -112,6 +112,7 @@ import { useHosts } from "@/composables/ai-radio/useHosts";
 import {
   clampDuckLevelDb,
   clampVoiceLevelDb,
+  CUSTOM_DUCK_FALLBACK_DB,
   DUCK_LEVEL_DB_MAX,
   DUCK_LEVEL_DB_MIN,
   errorMessage,
@@ -151,7 +152,9 @@ const hintLink = computed(() => entry.value?.hint_link || "");
 // The sliders keep their own value while a drag runs, so the readout follows
 // the thumb instead of waiting for the write to land.
 const voiceDraft = ref(voiceLevel.value);
-const duckDraft = ref(duckLevel.value ?? DUCK_LEVEL_DB_MAX);
+// while the queue uses the server default, the thumb already sits where turning
+// that default off would start: the depth the server mixes at, not 0 dB
+const duckDraft = ref(duckLevel.value ?? CUSTOM_DUCK_FALLBACK_DB);
 
 watch(voiceLevel, (value) => (voiceDraft.value = value));
 watch(duckLevel, (value) => {
@@ -188,11 +191,10 @@ function onDuckCommit(value: number[] | undefined) {
 }
 
 // "Standard" is a real choice of its own: it clears the depth to null rather
-// than to 0, which would mean no ducking at all.
+// than to 0, which would mean no ducking at all. Turning it off starts at the
+// depth the queue already mixes at, so the music does not jump back to full level.
 function onDuckStandardChange(standard: boolean | "indeterminate") {
-  void commitDuck(
-    standard === true ? null : (duckDraft.value ?? DUCK_LEVEL_DB_MAX),
-  );
+  void commitDuck(standard === true ? null : duckDraft.value);
 }
 
 /** Writes the voice level on its own and reports a failed write. */

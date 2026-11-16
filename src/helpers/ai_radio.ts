@@ -262,6 +262,13 @@ export const LEVEL_DB_STEP = 0.5;
 export const DEFAULT_VOICE_LEVEL_DB = 0;
 
 /**
+ * Ducking depth a queue mixes at while it uses the server default. The server
+ * never sends it, so it mirrors the streams bus: a voice-over pulls the music
+ * down to a gain of 0.6, which is about -8 dB.
+ */
+export const CUSTOM_DUCK_FALLBACK_DB = -8;
+
+/**
  * Brings a voice level into the accepted range. A missing or unusable value
  * falls back to 0 dB, since an older payload simply predates the field and an
  * unchanged voice is what it played.
