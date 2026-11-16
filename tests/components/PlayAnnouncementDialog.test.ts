@@ -274,6 +274,24 @@ describe("PlayAnnouncementDialog", () => {
     expect(mixOver.element).toHaveProperty("checked", true);
   });
 
+  it("offers mixing over the music only where it can be mixed", async () => {
+    withMicrophone();
+    const wrapper = mountDialog();
+
+    eventbus.emit("playAnnouncementDialog", { playerId: "kitchen" });
+    await flushPromises();
+
+    expect(wrapper.find("#announcement-mix-over").exists()).toBe(true);
+
+    // reka-ui switches tabs on mousedown, not on click
+    await speakTab(wrapper).trigger("mousedown", { button: 0 });
+
+    // the live path sends the clip itself and has no overlay mode, so the
+    // switch must not promise one there
+    expect(wrapper.find("#announcement-mix-over").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("play_announcement_mix_over");
+  });
+
   it("interrupts the music when mixing is switched off", async () => {
     apiMock.playerCommandPlayAnnouncement.mockResolvedValue(undefined);
     const wrapper = mountDialog();

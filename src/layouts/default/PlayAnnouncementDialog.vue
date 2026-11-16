@@ -92,7 +92,9 @@
           />
         </div>
 
-        <div class="flex flex-col gap-1">
+        <!-- only the typed message can be mixed in: the live path sends the
+             recorded clip itself and has no overlay mode -->
+        <div v-if="mode === 'type'" class="flex flex-col gap-1">
           <div class="flex items-center justify-between gap-4">
             <Label for="announcement-mix-over" class="cursor-pointer">
               {{ $t("play_announcement_mix_over") }}
