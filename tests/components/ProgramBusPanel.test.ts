@@ -63,7 +63,7 @@ describe("ProgramBusPanel", () => {
     });
   });
 
-  it("says the bus is off and links to the stream settings", async () => {
+  it("says the bus is off and links to the Streams settings", async () => {
     const wrapper = await mountPanel(
       busView({
         enabled: false,
@@ -72,13 +72,37 @@ describe("ProgramBusPanel", () => {
       }),
     );
 
-    expect(wrapper.text()).toContain("Program bus is off");
+    expect(wrapper.text()).toContain("Turns on in the Streams settings");
     expect(wrapper.text()).toContain("Off");
     const link = wrapper.get(".audio-processing-stage-title");
     expect(link.element.tagName).toBe("BUTTON");
     expect(link.attributes("title")).toBe("Open stream settings");
     await link.trigger("click");
     expect(routerMock.push).toHaveBeenCalledWith("/settings/editcore/streams");
+  });
+
+  it("names its group after what it holds, not after its only row", async () => {
+    const wrapper = await mountPanel();
+
+    expect(wrapper.get(".audio-processing-header-title").text()).toBe(
+      "Programs",
+    );
+    expect(wrapper.get(".audio-processing-stage-title").text()).toBe(
+      "Program bus",
+    );
+  });
+
+  it("states the bus status once, in the header line", async () => {
+    const wrapper = await mountPanel(
+      busView({ enabled: false, session_active: false, format: null }),
+    );
+
+    expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe(
+      "Off",
+    );
+    // the stage carries no second badge: badges here are for "bit perfect"
+    expect(wrapper.find(".audio-processing-stage-badge").exists()).toBe(false);
+    expect(wrapper.text().match(/Off/g)).toHaveLength(1);
   });
 
   it("reports a live session, its format and the claims held for it", async () => {
@@ -124,7 +148,7 @@ describe("ProgramBusPanel", () => {
     const wrapper = await mountPanel(new Error("connection lost"));
 
     expect(wrapper.get("[data-testid='program-bus-status']").text()).toBe("");
-    expect(wrapper.text()).not.toContain("Program bus is off");
+    expect(wrapper.text()).not.toContain("Turns on in the Streams settings");
     expect(wrapper.text()).toContain("Program bus status is unavailable");
   });
 
@@ -134,7 +158,7 @@ describe("ProgramBusPanel", () => {
     );
 
     expect(wrapper.text()).toContain("No flow session is mixing programs");
-    expect(wrapper.text()).not.toContain("Program bus is off");
+    expect(wrapper.text()).not.toContain("Turns on in the Streams settings");
   });
 
   it("shows a planned program with its label, state and seconds to go", async () => {

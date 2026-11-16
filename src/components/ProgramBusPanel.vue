@@ -18,7 +18,7 @@
         :class="{ 'audio-processing-quality-dot--neutral': !busLive }"
       ></span>
       <span class="audio-processing-header-title">{{
-        $t("program_bus.title")
+        $t("program_bus.section_header")
       }}</span>
       <span
         class="audio-processing-header-meta"
@@ -177,7 +177,6 @@ const stage = computed<AudioProcessingDisplayStage>(() => ({
   key: "program-bus",
   icon: Radio,
   title: $t("program_bus.title"),
-  badge: statusLabel.value,
   subtitleParts: subtitleParts.value,
   atomicSubtitleParts: true,
   // the switch lives in the core streams settings, only reachable by leaving this panel

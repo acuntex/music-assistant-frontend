@@ -3308,9 +3308,10 @@
     "play_announcement_sent_this_device": "Announcement sent to this device",
     "program_bus": {
         "title": "Program bus",
+        "section_header": "Programs",
         "on": "On",
         "off": "Off",
-        "off_hint": "Program bus is off",
+        "off_hint": "Turns on in the Streams settings",
         "no_session": "No flow session is mixing programs",
         "session_active": "Session active",
         "flow_claim": "Flow claim",

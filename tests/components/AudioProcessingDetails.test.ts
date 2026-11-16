@@ -954,7 +954,7 @@ describe("AudioProcessingDetails", () => {
     expect(apiMock.sendCommand).toHaveBeenCalledWith("streams/program_bus", {
       queue_id: "queue-1",
     });
-    expect(wrapper.text()).toContain("Program bus is off");
+    expect(wrapper.text()).toContain("Turns on in the Streams settings");
     wrapper.unmount();
   });
 
