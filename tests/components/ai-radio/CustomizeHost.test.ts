@@ -1,4 +1,5 @@
 import CustomizeHost from "@/components/ai-radio/CustomizeHost.vue";
+import FieldLabel from "@/components/ai-radio/FieldLabel.vue";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { compileHost, GENERIC_SEGMENT_TEMPLATES } from "@/helpers/ai_radio";
 import type { HostDraft } from "@/helpers/ai_radio";
@@ -49,6 +50,14 @@ vi.mock("vue-sonner", () => ({
     error: vi.fn(),
   },
 }));
+
+/** The explanation the label carries for a field, which the user sees on hover. */
+function descriptionOf(wrapper: VueWrapper, label: string): string {
+  const field = wrapper
+    .findAllComponents(FieldLabel)
+    .find((candidate) => candidate.props("label") === label);
+  return (field?.props("description") as string | undefined) ?? "";
+}
 
 /** Mounts the editor in create mode (a new host seeded with one generic example segment per placement). */
 async function mountEditor() {
@@ -137,6 +146,7 @@ describe("CustomizeHost term head pre-roll", () => {
     const wrapper = await mountExistingHost();
 
     await termHeadInput(wrapper).setValue("4.5");
+    await termHeadInput(wrapper).trigger("blur");
     await save(wrapper);
 
     expect(aiRadioCommands()).toContain("ai_radio/hosts/save");
@@ -157,24 +167,52 @@ describe("CustomizeHost term head pre-roll", () => {
     );
   });
 
-  it("keeps the control inside 0–12 seconds in 0.5 steps", async () => {
+  it("uses the same number field as the show editor", async () => {
     const wrapper = await mountExistingHost();
     const input = termHeadInput(wrapper);
 
-    expect(input.attributes("type")).toBe("number");
-    expect(input.attributes("min")).toBe("0");
-    expect(input.attributes("max")).toBe("12");
-    expect(input.attributes("step")).toBe("0.5");
+    // a NumberField exposes a spinbutton, not a bare number input
+    expect(input.attributes("role")).toBe("spinbutton");
+    expect(input.attributes("aria-valuemin")).toBe("0");
+    expect(input.attributes("aria-valuemax")).toBe("12");
+    expect(wrapper.find('input[type="number"]').exists()).toBe(false);
+  });
+
+  it("steps the pre-roll in half seconds", async () => {
+    const wrapper = await mountExistingHost();
+    await termHeadInput(wrapper).trigger("keydown", { key: "ArrowUp" });
+
+    expect((termHeadInput(wrapper).element as HTMLInputElement).value).toBe(
+      "2.5",
+    );
+  });
+
+  it("explains the pre-roll through the label's help", async () => {
+    const wrapper = await mountExistingHost();
+
+    // one pattern per card: the copy sits behind the label, not in a paragraph
+    expect(descriptionOf(wrapper, "Transition pre-roll (seconds)")).toContain(
+      "before the track ends",
+    );
+    expect(wrapper.text()).not.toContain("before the track ends");
   });
 
   it("clamps an out-of-range entry before it reaches the payload", async () => {
     const wrapper = await mountExistingHost();
 
     await termHeadInput(wrapper).setValue("13");
+    await termHeadInput(wrapper).trigger("blur");
+    expect((termHeadInput(wrapper).element as HTMLInputElement).value).toBe(
+      "12",
+    );
     await save(wrapper);
     expect(savedHost()?.term_head_seconds).toBe(12);
 
     await termHeadInput(wrapper).setValue("-1");
+    await termHeadInput(wrapper).trigger("blur");
+    expect((termHeadInput(wrapper).element as HTMLInputElement).value).toBe(
+      "0",
+    );
     await save(wrapper);
     expect(savedHost()?.term_head_seconds).toBe(0);
   });
@@ -235,6 +273,7 @@ describe("CustomizeHost contribution ceiling", () => {
     const wrapper = await mountExistingHost();
 
     await ceilingInput(wrapper).setValue("30");
+    await ceilingInput(wrapper).trigger("blur");
     await save(wrapper);
 
     expect(aiRadioCommands()).toContain("ai_radio/hosts/save");
@@ -253,33 +292,45 @@ describe("CustomizeHost contribution ceiling", () => {
     expect(inputValue(wrapper)).toBe("45");
   });
 
-  it("keeps the control inside 15–90 seconds in 1 second steps", async () => {
+  it("keeps the control inside 15–90 seconds", async () => {
     const wrapper = await mountExistingHost();
     const input = ceilingInput(wrapper);
 
-    expect(input.attributes("type")).toBe("number");
-    expect(input.attributes("min")).toBe("15");
-    expect(input.attributes("max")).toBe("90");
-    expect(input.attributes("step")).toBe("1");
+    expect(input.attributes("role")).toBe("spinbutton");
+    expect(input.attributes("aria-valuemin")).toBe("15");
+    expect(input.attributes("aria-valuemax")).toBe("90");
   });
 
-  it("shows the field's short description", async () => {
+  it("steps the ceiling in whole seconds", async () => {
     const wrapper = await mountExistingHost();
 
-    expect(wrapper.text()).toContain(
+    await wrapper
+      .get("#customize-host-max-contribution")
+      .trigger("keydown", { key: "ArrowUp" });
+
+    expect(inputValue(wrapper)).toBe("46");
+  });
+
+  it("explains the ceiling through the label's help", async () => {
+    const wrapper = await mountExistingHost();
+
+    expect(descriptionOf(wrapper, "Contribution ceiling (seconds)")).toBe(
       "Longest a single spoken contribution may run; longer material is cut.",
     );
+    expect(wrapper.text()).not.toContain("longer material is cut");
   });
 
   it("clamps an out-of-range entry before it reaches the payload", async () => {
     const wrapper = await mountExistingHost();
 
     await ceilingInput(wrapper).setValue("100");
+    await ceilingInput(wrapper).trigger("blur");
     expect(inputValue(wrapper)).toBe("90");
     await save(wrapper);
     expect(savedHost()?.max_contribution_seconds).toBe(90);
 
     await ceilingInput(wrapper).setValue("5");
+    await ceilingInput(wrapper).trigger("blur");
     expect(inputValue(wrapper)).toBe("15");
     await save(wrapper);
     expect(savedHost()?.max_contribution_seconds).toBe(15);

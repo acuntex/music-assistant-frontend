@@ -113,44 +113,56 @@
             </Select>
           </div>
 
-          <div class="flex flex-col gap-1.5">
+          <div
+            class="flex flex-col gap-1.5"
+            data-testid="customize-host-term-head-field"
+          >
             <FieldLabel
               html-for="customize-host-term-head"
               :label="$t('providers.ai_radio.fields.term_head')"
+              :description="
+                $t('providers.ai_radio.field_descriptions.term_head')
+              "
             />
-            <Input
+            <NumberField
               id="customize-host-term-head"
-              v-model="termHeadText"
-              type="number"
-              class="w-28"
+              v-model="termHeadValue"
               :min="TERM_HEAD_SECONDS_MIN"
               :max="TERM_HEAD_SECONDS_MAX"
               :step="TERM_HEAD_SECONDS_STEP"
-              @blur="normalizeTermHeadText"
-            />
-            <p class="text-xs text-muted-foreground">
-              {{ $t("providers.ai_radio.field_descriptions.term_head") }}
-            </p>
+            >
+              <NumberFieldContent>
+                <NumberFieldDecrement />
+                <NumberFieldInput />
+                <NumberFieldIncrement />
+              </NumberFieldContent>
+            </NumberField>
           </div>
 
-          <div class="flex flex-col gap-1.5">
+          <div
+            class="flex flex-col gap-1.5"
+            data-testid="customize-host-max-contribution-field"
+          >
             <FieldLabel
               html-for="customize-host-max-contribution"
               :label="$t('providers.ai_radio.fields.max_contribution')"
+              :description="
+                $t('providers.ai_radio.field_descriptions.max_contribution')
+              "
             />
-            <Input
+            <NumberField
               id="customize-host-max-contribution"
-              v-model="maxContributionText"
-              type="number"
-              class="w-28"
+              v-model="maxContributionValue"
               :min="MAX_CONTRIBUTION_SECONDS_MIN"
               :max="MAX_CONTRIBUTION_SECONDS_MAX"
               :step="MAX_CONTRIBUTION_SECONDS_STEP"
-              @blur="normalizeMaxContributionText"
-            />
-            <p class="text-xs text-muted-foreground">
-              {{ $t("providers.ai_radio.field_descriptions.max_contribution") }}
-            </p>
+            >
+              <NumberFieldContent>
+                <NumberFieldDecrement />
+                <NumberFieldInput />
+                <NumberFieldIncrement />
+              </NumberFieldContent>
+            </NumberField>
           </div>
 
           <div class="flex items-center gap-3">
@@ -315,6 +327,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  NumberField,
+  NumberFieldContent,
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/ui/number-field";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -418,47 +437,24 @@ const languageSelectValue = computed({
   },
 });
 
-// The number input needs raw text while it is being edited, so the control
-// keeps its own value and the draft takes the clamped one.
-const termHeadText = ref<string | number>("");
-
-watch(termHeadText, (value) => {
-  if (!draft.value) return;
-  const trimmed = String(value).trim();
-  if (trimmed === "") return;
-  const seconds = Number(trimmed);
-  if (!Number.isFinite(seconds)) return;
-  const clamped = clampTermHeadSeconds(seconds);
-  draft.value.termHeadSeconds = clamped;
-  // Echo a clamped entry back so the field never claims a value the payload
-  // does not carry.
-  if (seconds !== clamped) termHeadText.value = clamped;
+// The number fields hand over a number, or nothing while the field is cleared;
+// the draft keeps its last usable value and always holds the clamped one, so the
+// payload can never carry a value the server would reject.
+const termHeadValue = computed<number | undefined>({
+  get: () => draft.value?.termHeadSeconds,
+  set: (value) => {
+    if (!draft.value || value === undefined) return;
+    draft.value.termHeadSeconds = clampTermHeadSeconds(value);
+  },
 });
 
-function normalizeTermHeadText() {
-  if (!draft.value) return;
-  termHeadText.value = draft.value.termHeadSeconds;
-}
-
-// Same raw-text handling as the pre-roll: the field keeps what was typed while
-// the draft always holds a clamped number, because the server rejects a null.
-const maxContributionText = ref<string | number>("");
-
-watch(maxContributionText, (value) => {
-  if (!draft.value) return;
-  const trimmed = String(value).trim();
-  if (trimmed === "") return;
-  const seconds = Number(trimmed);
-  if (!Number.isFinite(seconds)) return;
-  const clamped = clampMaxContribution(seconds);
-  draft.value.maxContributionSeconds = clamped;
-  if (seconds !== clamped) maxContributionText.value = clamped;
+const maxContributionValue = computed<number | undefined>({
+  get: () => draft.value?.maxContributionSeconds,
+  set: (value) => {
+    if (!draft.value || value === undefined) return;
+    draft.value.maxContributionSeconds = clampMaxContribution(value);
+  },
 });
-
-function normalizeMaxContributionText() {
-  if (!draft.value) return;
-  maxContributionText.value = draft.value.maxContributionSeconds;
-}
 
 function updateSegment(index: number, segment: ShowSegment) {
   draft.value?.segments.splice(index, 1, segment);
@@ -675,8 +671,6 @@ onMounted(async () => {
         : newHostDraft();
     }
     loadOptionRows(draft.value.options);
-    normalizeTermHeadText();
-    normalizeMaxContributionText();
     // A draft that predates the switches (or a preset carrying none) plays both,
     // so the switches must not claim otherwise before the first save.
     draft.value.playIntro = draft.value.playIntro !== false;
