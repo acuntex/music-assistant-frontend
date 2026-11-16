@@ -1,10 +1,13 @@
 import {
+  clampDuckLevelDb,
   clampMaxContribution,
+  clampVoiceLevelDb,
   coerceOptionValue,
   compileHost,
   decompileHost,
   DEFAULT_MAX_CONTRIBUTION_SECONDS,
   DEFAULT_TERM_HEAD_SECONDS,
+  levelDbText,
   optionValueToText,
   rowsToOptions,
   uniqueHostName,
@@ -48,6 +51,8 @@ const makeHost = (overrides: Partial<AIRadioHost> = {}): AIRadioHost => ({
   merge_section_id: "",
   term_head_seconds: 2,
   max_contribution_seconds: 45,
+  play_intro: true,
+  play_outro: true,
   ...overrides,
 });
 
@@ -180,6 +185,67 @@ describe("max_contribution_seconds round-trip", () => {
     delete legacy.max_contribution_seconds;
     const draft = decompileHost(legacy as AIRadioHost, []);
     expect(draft.maxContributionSeconds).toBe(DEFAULT_MAX_CONTRIBUTION_SECONDS);
+  });
+});
+
+describe("play_intro and play_outro round-trip", () => {
+  it("plays both unless the draft turns them off", () => {
+    const { host } = compileHost(makeDraft());
+    expect(host.play_intro).toBe(true);
+    expect(host.play_outro).toBe(true);
+  });
+
+  it("carries switched-off switches into the payload", () => {
+    const { host } = compileHost(
+      makeDraft({ playIntro: false, playOutro: false }),
+    );
+    expect(host.play_intro).toBe(false);
+    expect(host.play_outro).toBe(false);
+  });
+
+  it("carries a host's switches into the draft", () => {
+    const draft = decompileHost(
+      makeHost({ play_intro: false, play_outro: true }),
+      [],
+    );
+    expect(draft.playIntro).toBe(false);
+    expect(draft.playOutro).toBe(true);
+  });
+
+  it("reads a host payload that predates the fields as playing both", () => {
+    const legacy = { ...makeHost() } as Partial<AIRadioHost>;
+    delete legacy.play_intro;
+    delete legacy.play_outro;
+    const draft = decompileHost(legacy as AIRadioHost, []);
+    expect(draft.playIntro).toBe(true);
+    expect(draft.playOutro).toBe(true);
+  });
+});
+
+describe("queue DJ level bounds", () => {
+  it("keeps the voice level inside 0 to -9 dB", () => {
+    expect(clampVoiceLevelDb(0)).toBe(0);
+    expect(clampVoiceLevelDb(-9)).toBe(-9);
+    expect(clampVoiceLevelDb(-12)).toBe(-9);
+    expect(clampVoiceLevelDb(3)).toBe(0);
+  });
+
+  it("reads a missing voice level as 0 dB, the unchanged voice", () => {
+    expect(clampVoiceLevelDb(null)).toBe(0);
+    expect(clampVoiceLevelDb(undefined)).toBe(0);
+    expect(clampVoiceLevelDb(Number.NaN)).toBe(0);
+  });
+
+  it("keeps the ducking depth inside 0 to -12 dB", () => {
+    expect(clampDuckLevelDb(0)).toBe(0);
+    expect(clampDuckLevelDb(-12)).toBe(-12);
+    expect(clampDuckLevelDb(-20)).toBe(-12);
+    expect(clampDuckLevelDb(4)).toBe(0);
+  });
+
+  it("spells a level in dB without a sign on zero", () => {
+    expect(levelDbText(0)).toBe("0 dB");
+    expect(levelDbText(-4.5)).toBe("-4.5 dB");
   });
 });
 

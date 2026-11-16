@@ -1,6 +1,10 @@
 import { showUri, useShows } from "@/composables/ai-radio/useShows";
 import api from "@/plugins/api";
-import type { Player, PlayerQueue } from "@/plugins/api/interfaces";
+import type {
+  AIRadioQueueDJStatus,
+  Player,
+  PlayerQueue,
+} from "@/plugins/api/interfaces";
 import { flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -181,15 +185,29 @@ describe("useShows refreshDjStatus overtaken by a pending newer refresh", () => 
   });
 });
 
+/** A queue's DJ status entry, with the mixing levels the server always sends. */
+function djEntry(
+  hostId: string,
+  stationId: string,
+): AIRadioQueueDJStatus[string] {
+  return {
+    host_id: hostId,
+    station_id: stationId,
+    voice_level_db: 0,
+    duck_db: null,
+    bus_enabled: true,
+    hint: null,
+    hint_link: null,
+  };
+}
+
 describe("useShows stopShow", () => {
   const liveStatus = {
-    livingroom: { host_id: "host-1", station_id: "show-1" },
+    livingroom: djEntry("host-1", "show-1"),
   };
 
   /** Wires the dj-status re-check to report the given status just ahead of the clear. */
-  function mockFreshStatus(
-    status: Record<string, { host_id: string; station_id: string }>,
-  ) {
+  function mockFreshStatus(status: AIRadioQueueDJStatus) {
     sendCommand.mockImplementation(async (command) =>
       command === "ai_radio/queue_dj/status" ? status : undefined,
     );
@@ -226,8 +244,8 @@ describe("useShows stopShow", () => {
   it("clears every queue the show is on air on and drops them all from the status", async () => {
     const twoQueues = {
       ...liveStatus,
-      kitchen: { host_id: "host-1", station_id: "show-1" },
-      office: { host_id: "host-2", station_id: "show-2" },
+      kitchen: djEntry("host-1", "show-1"),
+      office: djEntry("host-2", "show-2"),
     };
     useShows().djStatus.value = { ...twoQueues };
     mockFreshStatus(twoQueues);
@@ -239,7 +257,7 @@ describe("useShows stopShow", () => {
       .map((call) => (call[1] as { queue_id: string }).queue_id);
     expect(cleared.sort()).toEqual(["kitchen", "livingroom"]);
     expect(useShows().djStatus.value).toEqual({
-      office: { host_id: "host-2", station_id: "show-2" },
+      office: djEntry("host-2", "show-2"),
     });
     expect(toast.success).toHaveBeenCalledTimes(1);
   });

@@ -2515,6 +2515,10 @@ export interface AIRadioHost {
   term_head_seconds: number;
   // longest a single spoken contribution may run in seconds; longer material is cut
   max_contribution_seconds: number;
+  // whether the host's start-of-program segment plays when a show starts
+  play_intro: boolean;
+  // whether the host's closing segment plays at the end of the program
+  play_outro: boolean;
   // set on an untouched copy of a bundled preset, which the server keeps in sync
   preset_id?: string;
   preset_hash?: string;
@@ -2532,13 +2536,25 @@ export interface AIRadioStation {
 }
 
 /**
- * Per-queue AI DJ state. `station_id` is "" for a manually armed DJ and the
+ * One queue's AI DJ state. `station_id` is "" for a manually armed DJ and the
  * show's id when the DJ was auto-armed by playing that show (i.e. it's on air).
+ * The mixing levels are per queue: `voice_level_db` is how far the voice is
+ * pulled back (0 leaves it unchanged), `duck_db` is how far the music drops
+ * under the voice, where null means the server's default depth and 0 means no
+ * ducking at all. `bus_enabled` plus `hint`/`hint_link` tell the user when the
+ * DJ runs without the experimental program bus.
  */
-export type AIRadioQueueDJStatus = Record<
-  string,
-  { host_id: string; station_id: string }
->;
+export interface AIRadioQueueDJEntry {
+  host_id: string;
+  station_id: string;
+  voice_level_db: number;
+  duck_db: number | null;
+  bus_enabled: boolean;
+  hint: string | null;
+  hint_link: string | null;
+}
+
+export type AIRadioQueueDJStatus = Record<string, AIRadioQueueDJEntry>;
 
 /** Refetch hints the ai_radio plugin broadcasts as PROVIDER_EVENT payloads; they carry no state. */
 export type AIRadioEventName =

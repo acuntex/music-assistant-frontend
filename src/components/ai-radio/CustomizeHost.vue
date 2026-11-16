@@ -153,6 +153,36 @@
             </p>
           </div>
 
+          <div class="flex items-center gap-3">
+            <FieldLabel
+              html-for="customize-host-play-intro"
+              :label="$t('providers.ai_radio.fields.play_intro')"
+              :description="
+                $t('providers.ai_radio.field_descriptions.play_intro')
+              "
+            />
+            <Switch
+              id="customize-host-play-intro"
+              v-model="draft.playIntro"
+              data-testid="customize-host-play-intro"
+            />
+          </div>
+
+          <div class="flex items-center gap-3">
+            <FieldLabel
+              html-for="customize-host-play-outro"
+              :label="$t('providers.ai_radio.fields.play_outro')"
+              :description="
+                $t('providers.ai_radio.field_descriptions.play_outro')
+              "
+            />
+            <Switch
+              id="customize-host-play-outro"
+              v-model="draft.playOutro"
+              data-testid="customize-host-play-outro"
+            />
+          </div>
+
           <Accordion type="single" collapsible class="md:col-span-2">
             <AccordionItem value="advanced" class="border-b-0 border-t">
               <AccordionTrigger>
@@ -292,6 +322,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { useShows } from "@/composables/ai-radio/useShows";
@@ -492,6 +523,8 @@ function newHostDraft(): HostDraft {
     options: {},
     termHeadSeconds: DEFAULT_TERM_HEAD_SECONDS,
     maxContributionSeconds: DEFAULT_MAX_CONTRIBUTION_SECONDS,
+    playIntro: true,
+    playOutro: true,
     segments: deepClone(GENERIC_HOST_SEGMENTS),
   };
 }
@@ -644,6 +677,10 @@ onMounted(async () => {
     loadOptionRows(draft.value.options);
     normalizeTermHeadText();
     normalizeMaxContributionText();
+    // A draft that predates the switches (or a preset carrying none) plays both,
+    // so the switches must not claim otherwise before the first save.
+    draft.value.playIntro = draft.value.playIntro !== false;
+    draft.value.playOutro = draft.value.playOutro !== false;
     originalSnapshot = JSON.stringify(draft.value);
   } catch (error) {
     loadError.value = errorMessage(error);

@@ -243,6 +243,48 @@ export const clampMaxContribution = (value: unknown): number => {
   );
 };
 
+// --- queue DJ mixing levels -------------------------------------------------
+// Attenuation is measured downward from 0 dB, so the minimum is the loudest
+// cut the server accepts and the maximum is "unchanged".
+
+/** How far the DJ voice may be pulled back; 0 dB leaves it unchanged. */
+export const VOICE_LEVEL_DB_MIN = -9;
+export const VOICE_LEVEL_DB_MAX = 0;
+
+/** How far the music drops under the voice; 0 dB turns ducking off entirely. */
+export const DUCK_LEVEL_DB_MIN = -12;
+export const DUCK_LEVEL_DB_MAX = 0;
+
+/** Both level controls step in half decibels. */
+export const LEVEL_DB_STEP = 0.5;
+
+/** Voice level the UI shows and sends when the queue (or an older server) has none. */
+export const DEFAULT_VOICE_LEVEL_DB = 0;
+
+/**
+ * Brings a voice level into the accepted range. A missing or unusable value
+ * falls back to 0 dB, since an older payload simply predates the field and an
+ * unchanged voice is what it played.
+ */
+export const clampVoiceLevelDb = (value: unknown): number => {
+  if (value === null || value === undefined || value === "") {
+    return DEFAULT_VOICE_LEVEL_DB;
+  }
+  const level = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(level)) return DEFAULT_VOICE_LEVEL_DB;
+  return Math.min(VOICE_LEVEL_DB_MAX, Math.max(VOICE_LEVEL_DB_MIN, level));
+};
+
+/** Brings a ducking depth into the accepted range; null ("standard") is handled by the caller. */
+export const clampDuckLevelDb = (value: unknown): number => {
+  const level = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(level)) return DUCK_LEVEL_DB_MAX;
+  return Math.min(DUCK_LEVEL_DB_MAX, Math.max(DUCK_LEVEL_DB_MIN, level));
+};
+
+/** A level as it reads in the controls, e.g. "-4.5 dB". */
+export const levelDbText = (value: number): string => `${value} dB`;
+
 const GUARD_PLACEHOLDER_TOKENS = ["<weather_hourly>", "<timestamp>"] as const;
 
 const detectRequiredPlaceholders = (prompt: string): string[] => {
@@ -419,6 +461,10 @@ export interface HostDraft {
   termHeadSeconds: number;
   // maxContributionSeconds: longest a single spoken contribution may run
   maxContributionSeconds: number;
+  // playIntro/playOutro: whether the host's start and closing segments play
+  // (missing on drafts that predate them, which played both)
+  playIntro?: boolean;
+  playOutro?: boolean;
   segments: ShowSegment[];
   // Carried through unchanged; the server validates them on save
   presetId?: string;
@@ -458,6 +504,9 @@ export const compileHost = (draft: HostDraft): CompiledHost => {
       max_contribution_seconds: clampMaxContribution(
         draft.maxContributionSeconds,
       ),
+      // an untouched draft (or a persona preset from before the fields) plays both
+      play_intro: draft.playIntro !== false,
+      play_outro: draft.playOutro !== false,
       ...(draft.presetId && draft.presetHash
         ? { preset_id: draft.presetId, preset_hash: draft.presetHash }
         : {}),
@@ -610,6 +659,8 @@ export const decompileHost = (
     options: host.options,
     termHeadSeconds: clampTermHeadSeconds(host.term_head_seconds),
     maxContributionSeconds: clampMaxContribution(host.max_contribution_seconds),
+    playIntro: host.play_intro !== false,
+    playOutro: host.play_outro !== false,
     segments,
     presetId: host.preset_id,
     presetHash: host.preset_hash,

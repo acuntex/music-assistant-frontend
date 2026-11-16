@@ -45,6 +45,8 @@ const host: AIRadioHost = {
   options: {},
   term_head_seconds: 2,
   max_contribution_seconds: 45,
+  play_intro: true,
+  play_outro: true,
   section_ids: [],
   section_order: [],
   merge_section_id: "morning_crew_smoother",

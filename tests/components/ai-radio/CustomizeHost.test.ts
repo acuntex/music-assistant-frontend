@@ -295,6 +295,94 @@ describe("CustomizeHost contribution ceiling", () => {
   });
 });
 
+describe("CustomizeHost intro and outro", () => {
+  const baseDraft: HostDraft = {
+    id: "rick",
+    name: "Rick",
+    instructions: "Persona.",
+    ttsEngine: "",
+    language: "",
+    options: {},
+    termHeadSeconds: 2,
+    maxContributionSeconds: 45,
+    playIntro: true,
+    playOutro: true,
+    segments: [{ ...GENERIC_SEGMENT_TEMPLATES[0] }],
+  };
+
+  async function mountHost(host: AIRadioHost, sections: AIRadioSection[]) {
+    sendCommand.mockImplementation(async (command) => {
+      if (command === "ai_radio/hosts/get") return host;
+      if (command === "ai_radio/sections/list") return sections;
+      return [];
+    });
+    const wrapper = mount(CustomizeHost, { props: { hostId: host.id } });
+    await flushPromises();
+    return wrapper;
+  }
+
+  function mountExistingHost(overrides: Partial<AIRadioHost> = {}) {
+    const { host, sections } = compileHost(baseDraft);
+    return mountHost({ ...host, ...overrides }, sections);
+  }
+
+  const introSwitch = (wrapper: VueWrapper) =>
+    wrapper.get("[data-testid='customize-host-play-intro']");
+  const outroSwitch = (wrapper: VueWrapper) =>
+    wrapper.get("[data-testid='customize-host-play-outro']");
+
+  function savedHost() {
+    const saveCalls = sendCommand.mock.calls.filter(
+      ([command]) => command === "ai_radio/hosts/save",
+    );
+    const lastCall = saveCalls[saveCalls.length - 1];
+    return (lastCall?.[1] as { host?: AIRadioHost } | undefined)?.host;
+  }
+
+  it("shows the host's stored switches", async () => {
+    const wrapper = await mountExistingHost({
+      play_intro: false,
+      play_outro: true,
+    });
+
+    expect(introSwitch(wrapper).attributes("aria-checked")).toBe("false");
+    expect(outroSwitch(wrapper).attributes("aria-checked")).toBe("true");
+  });
+
+  it("shows both switches on for a host payload that predates the fields", async () => {
+    const { host, sections } = compileHost(baseDraft);
+    const legacy = { ...host } as Partial<AIRadioHost>;
+    delete legacy.play_intro;
+    delete legacy.play_outro;
+    const wrapper = await mountHost(legacy as AIRadioHost, sections);
+
+    expect(introSwitch(wrapper).attributes("aria-checked")).toBe("true");
+    expect(outroSwitch(wrapper).attributes("aria-checked")).toBe("true");
+  });
+
+  it("sends both switches with the host save and keeps the other fields", async () => {
+    const wrapper = await mountExistingHost();
+
+    await introSwitch(wrapper).trigger("click");
+    await save(wrapper);
+
+    expect(savedHost()?.play_intro).toBe(false);
+    expect(savedHost()?.play_outro).toBe(true);
+    expect(savedHost()?.instructions).toBe("Persona.");
+    expect(savedHost()?.name).toBe("Rick");
+  });
+
+  it("sends both switches on for a new host", async () => {
+    const wrapper = await mountEditor();
+    await wrapper.find("#customize-host-name").setValue("Morning Crew");
+
+    await save(wrapper);
+
+    expect(savedHost()?.play_intro).toBe(true);
+    expect(savedHost()?.play_outro).toBe(true);
+  });
+});
+
 describe("CustomizeHost save", () => {
   it("writes every section before the host that references them", async () => {
     const wrapper = await mountEditor();
@@ -334,6 +422,8 @@ describe("CustomizeHost save", () => {
       options: {},
       term_head_seconds: 2,
       max_contribution_seconds: 45,
+      play_intro: true,
+      play_outro: true,
       section_ids: [],
       section_order: [],
       merge_section_id: "",
@@ -385,6 +475,8 @@ describe("CustomizeHost save", () => {
       options: {},
       term_head_seconds: 2,
       max_contribution_seconds: 45,
+      play_intro: true,
+      play_outro: true,
       section_ids: [],
       section_order: [],
       merge_section_id: "",

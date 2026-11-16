@@ -302,6 +302,8 @@ describe("decompileHost", () => {
       options: {},
       term_head_seconds: 2,
       max_contribution_seconds: 45,
+      play_intro: true,
+      play_outro: true,
       section_ids: [legacySection.id, mergeSection.id],
       section_order: [
         {

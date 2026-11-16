@@ -135,6 +135,7 @@ vi.mock("@/composables/ai-radio/useHosts", () => ({
 vi.mock("vue-sonner", () => ({
   toast: {
     error: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -177,6 +178,8 @@ function makeHost(overrides: Partial<AIRadioHost> = {}): AIRadioHost {
     options: {},
     term_head_seconds: 2,
     max_contribution_seconds: 45,
+    play_intro: true,
+    play_outro: true,
     section_ids: [],
     section_order: [],
     merge_section_id: "",
@@ -185,8 +188,21 @@ function makeHost(overrides: Partial<AIRadioHost> = {}): AIRadioHost {
 }
 
 /** A queue's DJ entry: manually armed with no station, or auto-armed by the show it plays. */
-function djEntry(hostId: string, stationId = ""): AIRadioQueueDJStatus[string] {
-  return { host_id: hostId, station_id: stationId };
+function djEntry(
+  hostId: string,
+  stationId = "",
+  overrides: Partial<AIRadioQueueDJStatus[string]> = {},
+): AIRadioQueueDJStatus[string] {
+  return {
+    host_id: hostId,
+    station_id: stationId,
+    voice_level_db: 0,
+    duck_db: null,
+    bus_enabled: true,
+    hint: null,
+    hint_link: null,
+    ...overrides,
+  };
 }
 
 describe("getPlayerSetupMenuItem", () => {
@@ -631,6 +647,99 @@ describe("getPlayerMenuItems ai dj", () => {
       ?.action?.();
 
     expect(toast.error).toHaveBeenCalledWith("Connection lost");
+  });
+
+  it("offers the DJ levels control while a host is assigned", () => {
+    aiRadioAvailableRef.value = true;
+    hostsRef.value = [makeHost({ id: "host-1", name: "Robo DJ" })];
+    queueDjStatusRef.value = { kitchen: djEntry("host-1") };
+
+    const menuItems = getPlayerMenuItems(makePlayer(), makeQueue(), {
+      context: "queue",
+    });
+    const levels = menuItems.find((item) => item.label === "ai_dj_levels");
+
+    expect(levels?.subComponent).toBeDefined();
+    expect(levels?.componentProps).toEqual({ queueId: "kitchen" });
+  });
+
+  it("keeps the DJ levels control while a show is on air on this queue", () => {
+    aiRadioAvailableRef.value = true;
+    hostsRef.value = [makeHost({ id: "host-1", name: "Robo DJ" })];
+    queueDjStatusRef.value = { kitchen: djEntry("host-1", "show-1") };
+
+    const menuItems = getPlayerMenuItems(makePlayer(), makeQueue(), {
+      context: "queue",
+    });
+
+    expect(
+      menuItems.find((item) => item.label === "ai_dj_levels")?.subComponent,
+    ).toBeDefined();
+  });
+
+  it("omits the DJ levels control while no host is assigned", () => {
+    aiRadioAvailableRef.value = true;
+    hostsRef.value = [makeHost()];
+    queueDjStatusRef.value = {};
+
+    const menuItems = getPlayerMenuItems(makePlayer(), makeQueue(), {
+      context: "queue",
+    });
+
+    expect(menuItems.map((item) => item.label)).not.toContain("ai_dj_levels");
+  });
+
+  it("points out a DJ that runs without the program bus", async () => {
+    const { toast } = await import("vue-sonner");
+    aiRadioAvailableRef.value = true;
+    hostsRef.value = [makeHost({ id: "host-1", name: "Robo DJ" })];
+    setQueueDj.mockResolvedValueOnce({
+      kitchen: djEntry("host-1", "", {
+        bus_enabled: false,
+        hint: "The program bus is off, so the DJ plays its breaks at the boundary.",
+        hint_link: "/settings/editcore/streams",
+      }),
+    });
+
+    const menuItems = getPlayerMenuItems(makePlayer(), makeQueue(), {
+      context: "queue",
+    });
+    await menuItems
+      .find((item) => item.label === "ai_dj")
+      ?.subItems?.find((item) => item.label === "Robo DJ")
+      ?.action?.();
+
+    expect(toast.warning).toHaveBeenCalledWith(
+      "The program bus is off, so the DJ plays its breaks at the boundary.",
+      expect.objectContaining({
+        action: expect.objectContaining({
+          label: expect.any(String),
+          onClick: expect.any(Function),
+        }),
+      }),
+    );
+    const options = (
+      toast.warning as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls[0][1] as { action: { onClick: () => void } };
+    options.action.onClick();
+    expect(routerPush).toHaveBeenCalledWith("/settings/editcore/streams");
+  });
+
+  it("stays quiet when the assigned DJ has the program bus", async () => {
+    const { toast } = await import("vue-sonner");
+    aiRadioAvailableRef.value = true;
+    hostsRef.value = [makeHost({ id: "host-1", name: "Robo DJ" })];
+    setQueueDj.mockResolvedValueOnce({ kitchen: djEntry("host-1") });
+
+    const menuItems = getPlayerMenuItems(makePlayer(), makeQueue(), {
+      context: "queue",
+    });
+    await menuItems
+      .find((item) => item.label === "ai_dj")
+      ?.subItems?.find((item) => item.label === "Robo DJ")
+      ?.action?.();
+
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 
   it("omits the ai_dj entry outside the queue menu context", () => {

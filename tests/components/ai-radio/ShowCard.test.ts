@@ -6,6 +6,7 @@ import api, { type MusicAssistantApi } from "@/plugins/api";
 import {
   ImageType,
   MediaType,
+  type AIRadioQueueDJStatus,
   type AIRadioStation,
   type MediaItemImage,
   type Player,
@@ -66,8 +67,16 @@ const show = {
   source_playlist_provider: "library",
 } as AIRadioStation;
 
-const onAir = (queueId: string, stationId = show.id) => ({
-  [queueId]: { host_id: "host-1", station_id: stationId },
+const onAir = (queueId: string, stationId = show.id): AIRadioQueueDJStatus => ({
+  [queueId]: {
+    host_id: "host-1",
+    station_id: stationId,
+    voice_level_db: 0,
+    duck_db: null,
+    bus_enabled: true,
+    hint: null,
+    hint_link: null,
+  },
 });
 
 const renderCard = (overrides: Partial<AIRadioStation> = {}) =>

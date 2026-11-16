@@ -143,6 +143,34 @@ async function setQueueDj(
   return queueDjStatus.value;
 }
 
+/** A queue's DJ mixing levels, in dB of attenuation. */
+export interface AIRadioQueueDjLevels {
+  /** How far the voice is pulled back; 0 leaves it unchanged. */
+  voiceLevelDb: number | null;
+  /** How far the music drops under the voice; null is "standard", 0 is "no ducking". */
+  duckDb: number | null;
+}
+
+/**
+ * Stores a queue's DJ mixing levels and takes the server's answer as the new
+ * state, so clamped or defaulted values are what the controls show next.
+ */
+async function setQueueDjLevels(
+  queueId: string,
+  levels: AIRadioQueueDjLevels,
+): Promise<AIRadioQueueDJStatus> {
+  const result = await api.sendCommand<AIRadioQueueDJStatus>(
+    "ai_radio/queue_dj/set_levels",
+    {
+      queue_id: queueId,
+      voice_level_db: levels.voiceLevelDb,
+      duck_db: levels.duckDb,
+    },
+  );
+  queueDjStatus.value = result || {};
+  return queueDjStatus.value;
+}
+
 /**
  * Warms the AI DJ submenu's hosts cache. It's handed to the eventbus as a
  * plain array, so without this the first open shows no hosts.
@@ -177,6 +205,7 @@ export function useHosts() {
     loadTtsEngines,
     loadPresets,
     setQueueDj,
+    setQueueDjLevels,
   };
 }
 

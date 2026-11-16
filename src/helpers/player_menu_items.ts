@@ -10,6 +10,7 @@ import {
   RepeatMode,
   Scope,
   PLAYER_CONTROL_NONE,
+  type AIRadioQueueDJEntry,
 } from "@/plugins/api/interfaces";
 import {
   getPlayerDisplayName,
@@ -27,7 +28,8 @@ import { useAudioOverlay } from "@/composables/useAudioOverlay";
 import { visualizerProviderAvailable } from "@/plugins/visualizer-relay";
 import { visualizerEnabledForPlayer } from "@/composables/visualizer/useVisualizer";
 import VisualizerMenuControl from "@/layouts/default/PlayerOSD/VisualizerMenuControl.vue";
-import { Droplet, Megaphone, Sparkles } from "@lucide/vue";
+import AiDjLevelsMenu from "@/components/ai-radio/AiDjLevelsMenu.vue";
+import { Droplet, Megaphone, SlidersHorizontal, Sparkles } from "@lucide/vue";
 import { h, markRaw } from "vue";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { authManager } from "@/plugins/auth";
@@ -367,6 +369,17 @@ export const getPlayerMenuItems = (
         ],
       });
     }
+    // A queue with a DJ host gets the control over how loud it talks and how
+    // far the music drops under it; without a host there is nothing to mix.
+    if (queueDj?.host_id) {
+      menuItems.push({
+        label: "ai_dj_levels",
+        labelArgs: [],
+        icon: markRaw(SlidersHorizontal),
+        subComponent: markRaw(AiDjLevelsMenu),
+        componentProps: { queueId },
+      });
+    }
   }
 
   // select sound mode (player menu only; only when more than one is selectable)
@@ -480,8 +493,30 @@ async function assignQueueDj(
   hostId: string | null,
 ): Promise<void> {
   try {
-    await useHosts().setQueueDj(queueId, hostId);
+    const status = (await useHosts().setQueueDj(queueId, hostId)) ?? {};
+    // Only arming a DJ can bring a hint; clearing one has nothing to point at.
+    if (hostId) notifyQueueDjBusHint(status[queueId]);
   } catch (error) {
     toast.error(errorMessage(error));
   }
+}
+
+/**
+ * Points out a DJ that runs without the program bus: the DJ still plays, so
+ * this is a hint with a way to the setting, never a refusal.
+ */
+function notifyQueueDjBusHint(entry?: AIRadioQueueDJEntry): void {
+  if (!entry || entry.bus_enabled !== false || !entry.hint) return;
+  const link = entry.hint_link;
+  toast.warning(
+    entry.hint,
+    link
+      ? {
+          action: {
+            label: $t("providers.ai_radio.queue_dj.bus_off_link"),
+            onClick: () => void router.push(link),
+          },
+        }
+      : undefined,
+  );
 }

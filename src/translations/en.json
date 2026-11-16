@@ -2195,7 +2195,9 @@
                 "host": "Host",
                 "language": "Language",
                 "term_head": "Transition pre-roll (seconds)",
-                "max_contribution": "Contribution ceiling (seconds)"
+                "max_contribution": "Contribution ceiling (seconds)",
+                "play_intro": "Play intro",
+                "play_outro": "Play outro"
             },
             "field_descriptions": {
                 "source_playtime_cap": "Maximum total playing time of the source music, in minutes. Tracks are taken in the order the show plays them until the cap is reached. Leave at 0 for no limit.",
@@ -2204,13 +2206,25 @@
                 "allow_post": "The end of this segment plays over the start of the next song, with the music turned down under the voice, ending just before the singing starts. Only happens when Music Assistant knows where the singing starts and the intro is long enough. When several segments are spoken as one break, all of them need this on.",
                 "allow_pre": "The start of this segment plays over the end of the previous song, with the music turned down under the voice. Needs the experimental program bus (Settings → Core → Streams) and a player that streams in flow mode; without them the segment plays as its own break at the boundary. When several segments are spoken as one break, all of them need this on.",
                 "term_head": "How many seconds of the spoken contribution start before the crossfade begins; the rest plays over the incoming track. 0 means the voice starts exactly with the fade.",
-                "max_contribution": "Longest a single spoken contribution may run; longer material is cut."
+                "max_contribution": "Longest a single spoken contribution may run; longer material is cut.",
+                "play_intro": "Play this host's start-of-program segment when a show or the queue DJ starts.",
+                "play_outro": "Play this host's closing segment when the program ends."
             },
             "web_search": {
                 "disabled": "disabled (no web tool)",
                 "allow": "allow (model may use web)",
                 "force": "force (web search required)",
                 "help": "Whether the host may look things up on the web for this segment."
+            },
+            "queue_dj": {
+                "voice_level": "Voice level",
+                "voice_level_help": "0 dB leaves the voice unchanged; lower values pull it back under the music.",
+                "ducking": "Ducking",
+                "ducking_help": "How far the music drops under the voice. 0 dB turns ducking off, so the music keeps its level.",
+                "ducking_standard": "Standard",
+                "ducking_standard_use": "Use the server default",
+                "ducking_standard_help": "Uses the server's default ducking depth: Standard is not the same as 0 dB, which turns ducking off.",
+                "bus_off_link": "Open stream settings"
             },
             "plays": {
                 "start": "Once at start",
@@ -2949,6 +2963,7 @@
     "play_announcement_mic_failed": "The microphone could not be started.",
     "play_announcement_live_failed": "The announcement could not be played.",
     "ai_dj": "Enable AI Radio DJ",
+    "ai_dj_levels": "DJ voice and ducking",
     "ai_dj_off": "Off",
     "ai_dj_show_on_air": "On air: {0}",
     "ai_dj_show_on_air_unknown": "A show is on air",
